@@ -133,9 +133,7 @@ export default function NotificationBell() {
                         <div className="text-sm font-medium text-ink dark:text-slate-100 truncate">
                           {n.title}
                         </div>
-                        {n.body && (
-                          <div className="text-xs text-muted line-clamp-2">{n.body}</div>
-                        )}
+                        {n.body && <div className="text-xs text-muted line-clamp-2">{n.body}</div>}
                         <div className="text-[11px] text-muted mt-0.5">{timeAgo(n.created_at)}</div>
                       </div>
                     </div>
