@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from jose import JWTError, jwt
@@ -17,9 +17,20 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+def validate_password(password: str) -> None:
+    if len(password) < 8:
+        raise ValueError("A senha deve ter ao menos 8 caracteres")
+    if not any(c.isupper() for c in password):
+        raise ValueError("A senha deve conter ao menos uma letra maiúscula")
+    if not any(c.islower() for c in password):
+        raise ValueError("A senha deve conter ao menos uma letra minúscula")
+    if not any(c.isdigit() for c in password):
+        raise ValueError("A senha deve conter ao menos um número")
+
+
 def create_access_token(subject: str | int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": str(subject)}
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {"sub": str(subject), "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 

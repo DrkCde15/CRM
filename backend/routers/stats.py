@@ -21,19 +21,27 @@ def stats(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     total_tickets = db.query(Ticket).count()
     total_appointments = db.query(Appointment).count()
 
-    conversations_today = db.query(Conversation).filter(
-        Conversation.created_at >= today_start,
-        Conversation.created_at < today_end,
-    ).count()
+    conversations_today = (
+        db.query(Conversation)
+        .filter(
+            Conversation.created_at >= today_start,
+            Conversation.created_at < today_end,
+        )
+        .count()
+    )
 
     tickets_by_status = {}
     for row in db.query(Ticket.status, Ticket.id).all():
         tickets_by_status[row.status] = tickets_by_status.get(row.status, 0) + 1
 
-    tickets_today = db.query(Ticket).filter(
-        Ticket.created_at >= today_start,
-        Ticket.created_at < today_end,
-    ).count()
+    tickets_today = (
+        db.query(Ticket)
+        .filter(
+            Ticket.created_at >= today_start,
+            Ticket.created_at < today_end,
+        )
+        .count()
+    )
 
     return {
         "total_clients": total_clients,

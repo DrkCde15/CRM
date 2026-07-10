@@ -8,3 +8,7 @@ python-dotenv
 httpx
 bcrypt
 email-validator
+alembic
+pytest
+ruff
+black

@@ -54,3 +54,10 @@ export interface Stats {
   tickets_today: number
   tickets_by_status: Record<string, number>
 }
+
+export interface Paginated<T> {
+  items: T[]
+  total: number
+  skip: number
+  limit: number
+}

@@ -5,22 +5,25 @@ CRM completo com gestão de clientes, conversas, chamados (tickets) e agendament
 ## Estrutura
 
 ```
-crm/
+.
 ├── backend/          # API FastAPI (Python)
-│   ├── core/         # Config, database, auth deps
+│   ├── alembic/      # Migrations do banco
+│   ├── core/         # Config, database, auth, security
 │   ├── models/       # SQLAlchemy models
 │   ├── routers/      # Endpoints (auth, clients, tickets, appointments, stats, webhook)
-│   └── services/     # Lógica de negócio (integração Taky)
+│   ├── schemas/      # Pydantic schemas
+│   ├── services/     # Lógica de negócio
+│   └── tests/        # Testes (pytest)
 ├── frontend/         # React + Vite + TypeScript + Tailwind
 │   └── src/
-│       ├── components/
-│       ├── pages/      # Login, Inbox, Tickets, Appointments, Dashboard
-│       ├── api.ts      # Axios client
-│       ├── store.ts    # Zustand auth store
+│       ├── components/   # Layout, ChatBubble, Toaster
+│       ├── pages/        # Login, Register, Inbox, Tickets, Appointments, Dashboard, Users
+│       ├── utils/        # Validações
+│       ├── api.ts        # Axios client
+│       ├── store.ts      # Zustand (auth + toasts)
 │       └── types.ts
 └── gateway/          # Gateway WhatsApp (Node.js + Baileys)
     ├── index.js      # Servidor Express + Baileys WebSocket
-    ├── package.json
     └── .env.example
 ```
 
@@ -29,18 +32,19 @@ crm/
 ### Backend
 
 ```bash
-cd crm/backend
+cd backend
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+.venv\Scripts\activate        # Windows
 pip install -r requirements.txt
-cp .env.example .env     # edite as variáveis
+cp .env.example .env          # edite as variáveis
+alembic upgrade head          # cria/atualiza o schema do banco
 uvicorn main:app --reload
 ```
 
 ### Frontend
 
 ```bash
-cd crm/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -48,17 +52,40 @@ npm run dev
 ### Gateway (WhatsApp)
 
 ```bash
-cd crm/gateway
+cd gateway
 npm install
-cp .env.example .env     # edite WEBHOOK_URL
-node index.js            # escaneie o QR code com o WhatsApp
+cp .env.example .env          # edite WEBHOOK_URL
+node index.js                 # escaneie o QR code com o WhatsApp
 ```
+
+## Qualidade & Testes
+
+| Camada | Ferramentas | Comando |
+|---|---|---|
+| Backend | ruff + black + pytest | `ruff check .` · `black .` · `pytest -q` |
+| Frontend | eslint + prettier + vitest | `npm run lint` · `npm run format` · `npm test` |
+
+### Migrations (Alembic)
+
+O schema não é criado automaticamente. Sempre rode `alembic upgrade head` ao subir o projeto ou após mudanças nos models. Gerar nova migration:
+
+```bash
+alembic revision --autogenerate -m "descrição"
+```
+
+## Segurança & Contas
+
+- **Primeiro cadastro** cria o admin inicial (tela de registro).
+- **Novos usuários** só podem ser criados por um admin (tela "Usuários", visível só para admin).
+- **Tipos de conta**: `admin` (gestão completa) e `agent` (operação).
+- **Política de senha**: mín. 8 caracteres, com maiúscula, minúscula e número.
+- **Rate limit de login**: 5 tentativas falhas → bloqueio de 5 min (HTTP 429).
+- **Tokens JWT** com expiração (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Security headers**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`, etc.
 
 ## Gateway WhatsApp
 
 Microserviço Node.js que conecta o CRM ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
-
-### Fluxo
 
 ```
 WhatsApp <──> Gateway (porta 3001) <──> Backend CRM (porta 8000)
@@ -67,8 +94,6 @@ WhatsApp <──> Gateway (porta 3001) <──> Backend CRM (porta 8000)
 - **Entrada** (WhatsApp → CRM): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend
 - **Saída** (CRM → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens
 
-### Endpoints do gateway
-
 | Método | Rota | Descrição |
 |---|---|---|
 | `GET` | `/health` | Status da conexão WhatsApp |
@@ -76,13 +101,7 @@ WhatsApp <──> Gateway (porta 3001) <──> Backend CRM (porta 8000)
 | `POST` | `/send-buttons` | Enviar botões interativos |
 | `POST` | `/send-image` | Enviar imagem |
 
-### Funcionalidades
-
-- Reconexão automática ao desconectar
-- Retry com backoff exponencial no webhook (4 tentativas)
-- Suporte a texto, imagem e áudio
-- Persistência de sessão (QR code apenas no primeiro uso)
-- Rate limit de 30 requisições/min nos endpoints de envio
+Recursos: reconexão automática, retry com backoff no webhook, suporte a texto/imagem/áudio, persistência de sessão e rate limit de 30 req/min.
 
 ## Variáveis de ambiente
 

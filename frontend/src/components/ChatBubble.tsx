@@ -2,7 +2,12 @@ import type { Conversation } from '../types'
 
 function fmt(ts: string) {
   const d = new Date(ts)
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export default function ChatBubble({ item }: { item: Conversation }) {

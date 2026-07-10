@@ -1,5 +1,4 @@
 from core.config import settings
-from core.database import SessionLocal
 from models.models import Config
 
 

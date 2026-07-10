@@ -6,6 +6,7 @@ import Inbox from './pages/Inbox'
 import Tickets from './pages/Tickets'
 import Appointments from './pages/Appointments'
 import Dashboard from './pages/Dashboard'
+import Users from './pages/Users'
 import { useAuth } from './store'
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -20,10 +21,46 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<Navigate to="/inbox" replace />} />
-      <Route path="/inbox" element={<Protected><Inbox /></Protected>} />
-      <Route path="/tickets" element={<Protected><Tickets /></Protected>} />
-      <Route path="/appointments" element={<Protected><Appointments /></Protected>} />
-      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route
+        path="/inbox"
+        element={
+          <Protected>
+            <Inbox />
+          </Protected>
+        }
+      />
+      <Route
+        path="/tickets"
+        element={
+          <Protected>
+            <Tickets />
+          </Protected>
+        }
+      />
+      <Route
+        path="/appointments"
+        element={
+          <Protected>
+            <Appointments />
+          </Protected>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <Protected>
+            <Dashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <Protected>
+            <Users />
+          </Protected>
+        }
+      />
       <Route path="*" element={<Navigate to="/inbox" replace />} />
     </Routes>
   )

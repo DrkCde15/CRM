@@ -4,6 +4,16 @@
 
 :root {
   color-scheme: light;
+  --c-ink: 15 23 42;
+  --c-muted: 100 116 139;
+  --c-surface: 246 247 249;
+}
+
+html.dark {
+  color-scheme: dark;
+  --c-ink: 226 232 240;
+  --c-muted: 148 163 184;
+  --c-surface: 30 41 59;
 }
 
 body {
@@ -11,6 +21,11 @@ body {
   background: #f6f7f9;
   color: #0f172a;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+html.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
 * {

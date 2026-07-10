@@ -2,8 +2,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from models.models import Appointment, Client, Conversation, Ticket
-
+from models.models import Appointment, Client, Ticket
 
 MENU = {
     "inicio": (
@@ -47,7 +46,9 @@ def get_menu_text(state: str, dados: dict | None = None) -> str:
     return text
 
 
-def process_menu(phone: str, text: str, client: Client, db: Session) -> tuple[str | None, dict | None]:
+def process_menu(
+    phone: str, text: str, client: Client, db: Session
+) -> tuple[str | None, dict | None]:
     t = text.strip()
     estado = client.estado
 

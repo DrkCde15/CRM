@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { stats as statsApi } from '../api'
+import { stats as statsApi, ApiError } from '../api'
 import type { Stats } from '../types'
+import { useToasts } from '../store'
 
 const cards = [
   { key: 'total_clients', label: 'Clientes', color: 'bg-violet-500' },
@@ -18,10 +19,14 @@ const statusLabels: Record<string, string> = {
 
 export default function Dashboard() {
   const [data, setData] = useState<Stats | null>(null)
+  const { push } = useToasts()
 
   useEffect(() => {
-    statsApi.get().then(setData)
-  }, [])
+    statsApi
+      .get()
+      .then(setData)
+      .catch((e) => push('error', e instanceof ApiError ? e.message : 'Erro ao carregar'))
+  }, [push])
 
   if (!data) {
     return (
@@ -38,8 +43,13 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {cards.map((c) => (
-          <div key={c.key} className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl ${c.color} grid place-items-center text-white text-lg font-bold`}>
+          <div
+            key={c.key}
+            className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 dark:bg-slate-800 dark:border-slate-700"
+          >
+            <div
+              className={`w-10 h-10 rounded-xl ${c.color} grid place-items-center text-white text-lg font-bold`}
+            >
               {data[c.key]}
             </div>
             <div>
@@ -51,17 +61,17 @@ export default function Dashboard() {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4 mb-8">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
           <div className="text-sm text-muted mb-1">Conversas hoje</div>
           <div className="text-2xl font-bold text-ink">{data.conversations_today}</div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
           <div className="text-sm text-muted mb-1">Chamados hoje</div>
           <div className="text-2xl font-bold text-ink">{data.tickets_today}</div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
         <h2 className="text-sm font-semibold text-ink mb-3">Chamados por status</h2>
         <div className="flex gap-3 flex-wrap">
           {Object.entries(data.tickets_by_status).map(([status, count]) => (
