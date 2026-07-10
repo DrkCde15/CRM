@@ -1,3 +1,6 @@
+from typing import Annotated
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +17,13 @@ class Settings(BaseSettings):
 
     gateway_url: str = "http://localhost:3001"
     whatsapp_webhook_url: str = "http://localhost:8000/webhook"
+    frontend_url: str = "http://localhost:5173"
+
+    email_google_script_url: Annotated[str, Field(validation_alias="EMAIL_GOOGLE_SCRIPT_URL")] = ""
+    email_google_script_secret: Annotated[
+        str, Field(validation_alias="EMAIL_GOOGLE_SCRIPT_SECRET")
+    ] = ""
+    email_from_name: Annotated[str, Field(validation_alias="EMAIL_FROM_NAME")] = ""
 
     taky_api_url: str = ""
     taky_email: str = ""

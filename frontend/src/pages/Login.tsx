@@ -67,6 +67,11 @@ export default function Login() {
             Criar conta
           </Link>
         </p>
+        <p className="text-sm text-muted mt-2 text-center">
+          <Link to="/forgot-password" className="text-brand-600 hover:text-brand-700 font-medium">
+            Esqueci minha senha
+          </Link>
+        </p>
       </form>
     </div>
   )

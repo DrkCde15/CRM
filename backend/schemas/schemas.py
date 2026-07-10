@@ -34,6 +34,25 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    body: str
+    link: str | None
+    read: bool
+    created_at: datetime
+
+
 class ClientOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -76,12 +95,13 @@ class TicketCreate(BaseModel):
     titulo: str
     descricao: str = ""
     tipo: str = "chamado"
+    client_id: int | None = None
 
 
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    client_id: int
+    client_id: int | None
     titulo: str
     descricao: str
     tipo: str

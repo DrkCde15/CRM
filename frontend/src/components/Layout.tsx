@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, useTheme } from '../store'
 import Toaster from './Toaster'
+import NotificationBell from './NotificationBell'
 
 function ThemeToggle() {
   const { dark, toggleDark } = useTheme()
@@ -89,6 +90,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell />
           <ThemeToggle />
           <button
             onClick={() => {

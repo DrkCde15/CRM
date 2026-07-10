@@ -8,7 +8,7 @@ from core.database import get_db
 from core.deps import get_current_user
 from models.models import Client, Ticket, User
 from schemas.schemas import Paginated, TicketCreate, TicketOut
-from services import taky
+from services import email, notifications, taky
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -57,12 +57,38 @@ def get_ticket(ticket_id: int, db: Session = Depends(get_db), _: User = Depends(
 
 @router.post("", response_model=TicketOut)
 def create_ticket(
-    body: TicketCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    body: TicketCreate,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
-    ticket = Ticket(titulo=body.titulo, descricao=body.descricao, tipo=body.tipo)
+    ticket = Ticket(
+        titulo=body.titulo,
+        descricao=body.descricao,
+        tipo=body.tipo,
+        client_id=body.client_id,
+    )
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+
+    body_html = (
+        f"<b>#{ticket.id}</b> — {ticket.titulo}<br/>"
+        f"Tipo: {ticket.tipo}<br/>"
+        f"{ticket.descricao or 'Sem descrição'}"
+    )
+    background.add_task(
+        email.notify_all_users,
+        f"Novo chamado #{ticket.id}",
+        "Novo chamado criado",
+        body_html,
+    )
+    background.add_task(
+        notifications.notify_all,
+        f"Novo chamado #{ticket.id}",
+        ticket.titulo,
+        "/tickets",
+    )
     return ticket
 
 

@@ -1,16 +1,28 @@
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
 from time import time
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
+from core.config import settings
 from core.database import SessionLocal
 from core.deps import get_current_user, optional_current_user
 from core.security import create_access_token, hash_password, validate_password, verify_password
-from models.models import User
-from schemas.schemas import Token, UserCreate, UserOut
+from models.models import PasswordReset, User
+from schemas.schemas import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    Token,
+    UserCreate,
+    UserOut,
+)
+from services import email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_RESET_TOKEN_TTL = timedelta(hours=1)
 
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 _MAX_ATTEMPTS = 5
@@ -98,5 +110,61 @@ def list_users(user: User = Depends(get_current_user)):
     db = SessionLocal()
     try:
         return _list_users(db)
+    finally:
+        db.close()
+
+
+async def _send_reset_email(user_email: str, user_name: str, token: str) -> None:
+    link = f"{settings.frontend_url}/reset-password?token={token}"
+    body = (
+        f"Olá {user_name or user_email},<br/><br/>"
+        f"Recebemos um pedido para redefinir sua senha.<br/>"
+        f"Clique no link abaixo para criar uma nova senha (válido por 1 hora):<br/><br/>"
+        f'<a href="{link}">{link}</a><br/><br/>'
+        f"Se você não solicitou, ignore este e-mail."
+    )
+    await email.send_email(
+        user_email, "Redefinir senha — CRM", email.render_html("Redefinir senha", body)
+    )
+
+
+@router.post("/forgot-password")
+def forgot_password(body: ForgotPasswordRequest, background: BackgroundTasks):
+    db = SessionLocal()
+    try:
+        user = _get_user_by_email(db, body.email)
+        if user:
+            token = token_urlsafe(32)
+            reset = PasswordReset(
+                user_id=user.id,
+                token=token,
+                expires_at=datetime.now(UTC) + _RESET_TOKEN_TTL,
+            )
+            db.add(reset)
+            db.commit()
+            background.add_task(_send_reset_email, user.email, user.name, token)
+    finally:
+        db.close()
+    return {"detail": "Se o e-mail existir, enviaremos as instruções de redefinição"}
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordRequest):
+    db = SessionLocal()
+    try:
+        reset = db.query(PasswordReset).filter_by(token=body.token).first()
+        if not reset or reset.used or reset.expires_at < datetime.now(UTC).replace(tzinfo=None):
+            raise HTTPException(status_code=400, detail="Token inválido ou expirado")
+        try:
+            validate_password(body.password)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        user = db.get(User, reset.user_id)
+        if not user:
+            raise HTTPException(status_code=400, detail="Token inválido ou expirado")
+        user.hashed_password = hash_password(body.password)
+        reset.used = True
+        db.commit()
+        return {"detail": "Senha redefinida com sucesso"}
     finally:
         db.close()

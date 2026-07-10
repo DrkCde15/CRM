@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp()}/test.db")
 os.environ.setdefault("SECRET_KEY", "test-secret")
+os.environ.setdefault("EMAIL_GOOGLE_SCRIPT_URL", "")
+os.environ.setdefault("EMAIL_GOOGLE_SCRIPT_SECRET", "")
 
 
 @pytest.fixture()

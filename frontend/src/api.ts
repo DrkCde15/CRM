@@ -1,5 +1,14 @@
 import axios, { type AxiosError } from 'axios'
-import type { Appointment, Client, Conversation, Paginated, Stats, Ticket, User } from './types'
+import type {
+  Appointment,
+  Client,
+  Conversation,
+  NotificationList,
+  Paginated,
+  Stats,
+  Ticket,
+  User,
+} from './types'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -39,6 +48,10 @@ export const auth = {
   },
   me: async () => (await api.get<User>('/auth/me')).data,
   users: async () => (await api.get<User[]>('/auth/users')).data,
+  forgotPassword: async (email: string) =>
+    (await api.post('/auth/forgot-password', { email })).data,
+  resetPassword: async (token: string, password: string) =>
+    (await api.post('/auth/reset-password', { token, password })).data,
 }
 
 export const clients = {
@@ -60,6 +73,12 @@ export const appointments = {
 
 export const stats = {
   get: async () => (await api.get<Stats>('/stats')).data,
+}
+
+export const notifications = {
+  list: async () => (await api.get<NotificationList>('/notifications')).data,
+  markRead: async (id: number) => (await api.post(`/notifications/${id}/read`)).data,
+  markAllRead: async () => (await api.post('/notifications/read-all')).data,
 }
 
 export default api

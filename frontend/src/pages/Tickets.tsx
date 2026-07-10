@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import addNotification from 'react-push-notification'
 import { tickets as ticketsApi } from '../api'
 import { ApiError } from '../api'
 import type { Ticket } from '../types'
@@ -18,12 +19,29 @@ export default function Tickets() {
   const [skip, setSkip] = useState(0)
   const [total, setTotal] = useState(0)
   const { push } = useToasts()
+  const knownIds = useRef<Set<number> | null>(null)
 
   const load = async (s: number) => {
     try {
       const data = await ticketsApi.list(s, PAGE)
       setList(data.items)
       setTotal(data.total)
+      const ids = new Set(data.items.map((t) => t.id))
+      if (knownIds.current === null) {
+        knownIds.current = ids
+      } else {
+        for (const t of data.items) {
+          if (!knownIds.current.has(t.id)) {
+            addNotification({
+              title: `Novo chamado #${t.id}`,
+              message: t.titulo,
+              native: true,
+            })
+            push('info', `Novo chamado #${t.id}: ${t.titulo}`)
+          }
+        }
+        knownIds.current = ids
+      }
     } catch (e) {
       push('error', e instanceof ApiError ? e.message : 'Erro ao carregar chamados')
     }

@@ -61,3 +61,17 @@ export interface Paginated<T> {
   skip: number
   limit: number
 }
+
+export interface AppNotification {
+  id: number
+  title: string
+  body: string
+  link: string | null
+  read: boolean
+  created_at: string
+}
+
+export interface NotificationList {
+  items: AppNotification[]
+  unread_count: number
+}
