@@ -17,6 +17,10 @@ export const auth = {
     const { data } = await api.post('/auth/login', form)
     return data.access_token as string
   },
+  register: async (body: { email: string; name: string; password: string; role?: string }) => {
+    const { data } = await api.post('/auth/register', body)
+    return data as { id: number; email: string; name: string; role: string }
+  },
 }
 
 export const clients = {
