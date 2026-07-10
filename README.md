@@ -67,10 +67,22 @@ node index.js                 # escaneie o QR code com o WhatsApp
 
 ### Migrations (Alembic)
 
-O schema não é criado automaticamente. Sempre rode `alembic upgrade head` ao subir o projeto ou após mudanças nos models. Gerar nova migration:
+O schema não é criado automaticamente. Sempre rode `alembic upgrade head` ao subir o projeto ou após mudanças nos models.
+
+Atalho (`backend/db.py`) para os comandos mais usados:
+
+```bash
+python db.py revision -m "descrição"   # gera migration (autogenerate)
+python db.py upgrade                   # aplica até head
+python db.py downgrade -1              # reverte 1 migration
+python db.py stamp head                # marca versão sem rodar
+```
+
+Ou direto com o Alembic:
 
 ```bash
 alembic revision --autogenerate -m "descrição"
+alembic upgrade head
 ```
 
 ## Segurança & Contas
