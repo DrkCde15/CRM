@@ -124,7 +124,7 @@ async def _send_reset_email(user_email: str, user_name: str, token: str) -> None
         f"Se você não solicitou, ignore este e-mail."
     )
     await email.send_email(
-        user_email, "Redefinir senha — CRM", email.render_html("Redefinir senha", body)
+        user_email, "Redefinir senha — Convexo", email.render_html("Redefinir senha", body)
     )
 
 

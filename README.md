@@ -1,6 +1,10 @@
-# CRM — Sistema de Atendimento
+<div align="center">
+  <img src="frontend/public/logo.png" alt="Convexo" width="120" />
+</div>
 
-CRM completo com gestão de clientes, conversas, chamados (tickets) e agendamentos, com integração WhatsApp.
+# Convexo — Sistema de Atendimento
+
+Convexo é um CRM completo com gestão de clientes, conversas, chamados (tickets) e agendamentos, com integração WhatsApp.
 
 ## Estrutura
 
@@ -136,14 +140,14 @@ Endpoints (`routers/notifications.py`):
 
 ## Gateway WhatsApp
 
-Microserviço Node.js que conecta o CRM ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
+Microserviço Node.js que conecta o Convexo ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
 
 ```
-WhatsApp <──> Gateway (porta 3001) <──> Backend CRM (porta 8000)
+WhatsApp <──> Gateway (porta 3001) <──> Backend Convexo (porta 8000)
 ```
 
-- **Entrada** (WhatsApp → CRM): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend
-- **Saída** (CRM → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens
+- **Entrada** (WhatsApp → Convexo): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend
+- **Saída** (Convexo → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens
 
 | Método | Rota | Descrição |
 |---|---|---|

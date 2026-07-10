@@ -67,10 +67,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 gap-8 sticky top-0 z-10 dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl bg-brand-500 grid place-items-center text-white font-bold">
-            C
-          </span>
-          <span className="font-semibold text-ink dark:text-slate-100">CRM · Atendimento</span>
+          <img src="/logo.png" alt="Convexo" className="w-8 h-8 rounded-xl object-contain" />
+          <span className="font-semibold text-ink dark:text-slate-100">Convexo · Atendimento</span>
         </div>
         <nav className="flex gap-1">
           {links.map((l) => (

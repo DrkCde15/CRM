@@ -33,10 +33,8 @@ export default function Login() {
         className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 p-8 shadow-sm dark:bg-slate-800 dark:border-slate-700"
       >
         <div className="flex items-center gap-2 mb-6">
-          <span className="w-9 h-9 rounded-xl bg-brand-500 grid place-items-center text-white font-bold">
-            C
-          </span>
-          <h1 className="text-lg font-semibold text-ink">Entrar no CRM</h1>
+          <img src="/logo.png" alt="Convexo" className="w-9 h-9 rounded-xl object-contain" />
+          <h1 className="text-lg font-semibold text-ink">Entrar no Convexo</h1>
         </div>
         <label className="block text-sm text-muted mb-1">E-mail</label>
         <input

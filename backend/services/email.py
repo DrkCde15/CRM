@@ -12,11 +12,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="pt-BR">
 <body style="font-family:Inter,Arial,sans-serif;background:#f6f7f9;padding:24px;color:#0f172a">
   <div style="max-width:520px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px">
-    <div style="font-size:20px;font-weight:700;color:#059669">CRM · Atendimento</div>
+    <div style="font-size:20px;font-weight:700;color:#059669">Convexo · Atendimento</div>
     <h1 style="font-size:18px">{title}</h1>
     <div style="font-size:14px;line-height:1.5">{body}</div>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0" />
-    <div style="font-size:12px;color:#64748b">Esta é uma mensagem automática do CRM.</div>
+    <div style="font-size:12px;color:#64748b">Esta é uma mensagem automática do Convexo.</div>
   </div>
 </body>
 </html>"""
