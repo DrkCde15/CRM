@@ -32,7 +32,10 @@ export default function Appointments() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {!loading && list.length === 0 && <p className="text-sm text-muted">Nenhum agendamento.</p>}
         {list.map((a) => (
-          <div key={a.id} className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+          <div
+            key={a.id}
+            className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700"
+          >
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-ink">{a.name || '—'}</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-muted dark:bg-slate-700 dark:text-slate-300">

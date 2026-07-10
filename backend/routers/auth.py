@@ -77,7 +77,9 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         if not user or not verify_password(form.password, user.hashed_password):
             _register_failure(key)
             _check_lockout(key)
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
         _login_attempts[key].clear()
         return Token(access_token=create_access_token(user.id))
     finally:

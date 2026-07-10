@@ -6,10 +6,12 @@ Uso:
     python db.py downgrade [-1|rev]              # reverte migrations
     python db.py stamp [head|rev]                # marca versão sem rodar
 """
+
 import sys
 
-from alembic import command
 from alembic.config import Config
+
+from alembic import command
 
 
 def _config() -> Config:
