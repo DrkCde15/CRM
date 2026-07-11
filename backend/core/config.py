@@ -31,5 +31,23 @@ class Settings(BaseSettings):
     taky_default_project_id: int | None = None
     taky_default_user_id: int | None = None
 
+    api_groq: Annotated[str, Field(validation_alias="API_GROQ")] = ""
+    groq_base_url: Annotated[str, Field(validation_alias="GROQ_BASE_URL")] = (
+        "https://api.groq.com/openai/v1"
+    )
+    groq_primary_model: Annotated[str, Field(validation_alias="GROQ_PRIMARY_MODEL")] = (
+        "groq/compound-mini"
+    )
+    groq_vision_model: Annotated[str, Field(validation_alias="GROQ_VISION_MODEL")] = (
+        "meta-llama/llama-4-scout-17b-16e-instruct"
+    )
+    groq_fallback_models: Annotated[
+        str, Field(validation_alias="GROQ_FALLBACK_MODELS")
+    ] = ""
+    groq_max_retries: Annotated[int, Field(validation_alias="GROQ_MAX_RETRIES")] = 3
+    groq_temperature: Annotated[float, Field(validation_alias="GROQ_TEMPERATURE")] = 0.8
+
+    whatsapp_bot_name: str = "Assistente"
+
 
 settings = Settings()

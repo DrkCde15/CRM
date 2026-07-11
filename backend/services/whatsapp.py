@@ -39,11 +39,33 @@ MENU = {
 }
 
 
+MENU_BUTTONS: dict[str, list[tuple[str, str]]] = {
+    "inicio": [
+        ("1", "Informações"),
+        ("2", "Agendar horário"),
+        ("3", "Falar com o Bot 🤖"),
+        ("4", "Falar com atendente"),
+        ("5", "Abrir chamado 🎯"),
+        ("6", "Agendar reunião 📅"),
+        ("7", "Sair"),
+    ],
+    "informacoes": [("0", "Voltar ao menu")],
+    "agendar_confirmar": [("1", "Sim"), ("0", "Cancelar")],
+    "chamado_confirmar": [("1", "Sim"), ("0", "Cancelar")],
+    "reuniao_confirmar": [("1", "Sim"), ("0", "Cancelar")],
+    "falando_bot": [("0", "Voltar ao menu")],
+}
+
+
 def get_menu_text(state: str, dados: dict | None = None) -> str:
     text = MENU.get(state, MENU["inicio"])
     if callable(text):
         return text(dados or {})
     return text
+
+
+def get_menu_buttons(state: str) -> list[tuple[str, str]] | None:
+    return MENU_BUTTONS.get(state)
 
 
 def process_menu(

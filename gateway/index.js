@@ -73,7 +73,12 @@ app.post('/send-buttons', async (req, res) => {
   if (!isValidJid(to)) return res.status(400).json({ error: 'Invalid JID format' });
   if (!sock?.user) return res.status(503).json({ error: 'WhatsApp not connected' });
   try {
-    const rows = buttons.map((b, i) => ({ title: b, rowId: `opt_${i + 1}` }));
+    const rows = buttons.map((b, i) => {
+      if (typeof b === 'string') {
+        return { title: b, rowId: `opt_${i + 1}` };
+      }
+      return { title: b.label ?? b.title, rowId: b.value ?? b.rowId ?? `opt_${i + 1}` };
+    });
     const sections = [{ title: 'Menu', rows }];
     await sock.sendMessage(to, {
       text, footer: 'Escolha uma opção:', title: '📋 Menu', buttonText: 'Ver opções', sections,
