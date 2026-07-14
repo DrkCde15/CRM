@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from core.config import settings
+from core.database import Base, engine
 
 logger = logging.getLogger("convexo")
 from routers import (
@@ -32,6 +33,10 @@ async def lifespan(app: FastAPI):
             logger.warning("CONFIG: %s", msg)
     else:
         logger.info("Configuração validada: OK")
+    # Garante que as tabelas existam mesmo sem rodar `alembic upgrade head`
+    # antes (ex.: ao subir de um diretório diferente e criar um crm.db novo).
+    Base.metadata.create_all(engine)
+    logger.info("Banco de dados: %s", engine.url)
     yield
 
 
