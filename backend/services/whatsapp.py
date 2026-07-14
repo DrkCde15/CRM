@@ -89,7 +89,10 @@ def process_menu(
             return _go(client, db, "reuniao_titulo")
         if t == "7":
             return "Obrigado pelo contato! 😊 Digite *Olá* quando precisar.", None
-        return get_menu_text("inicio"), None
+        if not t:
+            return get_menu_text("inicio"), None
+        # Qualquer texto que não seja opção de menu vai direto para a IA.
+        return None, {"ai": True}
 
     if estado == "informacoes":
         if t == "0":

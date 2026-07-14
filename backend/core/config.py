@@ -47,6 +47,42 @@ class Settings(BaseSettings):
     groq_max_retries: Annotated[int, Field(validation_alias="GROQ_MAX_RETRIES")] = 3
     groq_temperature: Annotated[float, Field(validation_alias="GROQ_TEMPERATURE")] = 0.8
 
+    # ── Provedores de IA (selecione com LLM_PROVIDER) ──
+    # groq | openai | anthropic | gemini | ollama
+    llm_provider: str = "groq"
+
+    # OpenAI (compatível OpenAI)
+    api_openai: Annotated[str, Field(validation_alias="API_OPENAI")] = ""
+    openai_base_url: Annotated[str, Field(validation_alias="OPENAI_BASE_URL")] = (
+        "https://api.openai.com/v1"
+    )
+    openai_model: Annotated[str, Field(validation_alias="OPENAI_MODEL")] = "gpt-4o-mini"
+    openai_vision_model: Annotated[
+        str, Field(validation_alias="OPENAI_VISION_MODEL")
+    ] = "gpt-4o-mini"
+
+    # Anthropic (Claude)
+    api_anthropic: Annotated[str, Field(validation_alias="API_ANTHROPIC")] = ""
+    anthropic_base_url: Annotated[
+        str, Field(validation_alias="ANTHROPIC_BASE_URL")
+    ] = "https://api.anthropic.com/v1"
+    anthropic_model: Annotated[
+        str, Field(validation_alias="ANTHROPIC_MODEL")
+    ] = "claude-3-5-haiku-latest"
+
+    # Google Gemini
+    api_gemini: Annotated[str, Field(validation_alias="API_GEMINI")] = ""
+    gemini_model: Annotated[str, Field(validation_alias="GEMINI_MODEL")] = (
+        "gemini-1.5-flash"
+    )
+
+    # Ollama (local, compatível OpenAI)
+    api_ollama: Annotated[str, Field(validation_alias="API_OLLAMA")] = ""
+    ollama_base_url: Annotated[
+        str, Field(validation_alias="OLLAMA_BASE_URL")
+    ] = "http://localhost:11434/v1"
+    ollama_model: Annotated[str, Field(validation_alias="OLLAMA_MODEL")] = "llama3"
+
     whatsapp_bot_name: str = "Assistente"
 
     upload_dir: str = "uploads"

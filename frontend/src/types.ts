@@ -153,6 +153,15 @@ export interface InboxItem {
   ticket_id?: number | null
 }
 
+export interface CannedResponse {
+  id: number
+  company_id: number
+  kind: 'quick_reply' | 'macro'
+  title: string
+  content: string
+  created_at: string
+}
+
 export interface Paginated<T> {
   items: T[]
   total: number

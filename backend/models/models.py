@@ -255,6 +255,19 @@ class WebsiteMessage(Base):
     conversation: Mapped["WebsiteConversation"] = relationship(back_populates="messages")
 
 
+class CannedResponse(Base):
+    __tablename__ = "canned_responses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="quick_reply", index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC)
+    )
+
+
 class WidgetConfig(Base):
     __tablename__ = "widget_configs"
 

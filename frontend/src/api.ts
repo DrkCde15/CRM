@@ -1,6 +1,7 @@
 import axios, { type AxiosError } from 'axios'
 import type {
   Appointment,
+  CannedResponse,
   Client,
   Conversation,
   EmailAccount,
@@ -139,6 +140,32 @@ export const websiteChat = {
     (await api.post<WebsiteConversation>(`/chat/${id}/assign`, { assigned_user })).data,
   close: async (id: number) =>
     (await api.post<WebsiteConversation>(`/chat/${id}/close`)).data,
+}
+
+export const canned = {
+  list: async (kind: 'quick_reply' | 'macro') =>
+    (await api.get<CannedResponse[]>(kind === 'quick_reply' ? '/quick-replies' : '/macros'))
+      .data,
+  create: async (body: { kind: 'quick_reply' | 'macro'; title: string; content: string }) =>
+    (
+      await api.post<CannedResponse>(
+        body.kind === 'quick_reply' ? '/quick-replies' : '/macros',
+        body,
+      )
+    ).data,
+  update: async (
+    kind: 'quick_reply' | 'macro',
+    id: number,
+    body: { title?: string; content?: string },
+  ) =>
+    (
+      await api.put<CannedResponse>(
+        `${kind === 'quick_reply' ? '/quick-replies' : '/macros'}/${id}`,
+        body,
+      )
+    ).data,
+  remove: async (kind: 'quick_reply' | 'macro', id: number) =>
+    (await api.delete(`${kind === 'quick_reply' ? '/quick-replies' : '/macros'}/${id}`)).data,
 }
 
 export default api

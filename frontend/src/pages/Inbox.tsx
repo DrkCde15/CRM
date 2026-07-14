@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { inbox as inboxApi, clients, emailChannel, websiteChat } from '../api'
+import { inbox as inboxApi, clients, emailChannel, websiteChat, canned } from '../api'
 import type {
   Conversation,
+  CannedResponse,
   EmailConversation,
   InboxItem,
   WebsiteMessage,
@@ -38,6 +39,15 @@ export default function Inbox() {
   const [detail, setDetail] = useState<Detail>(null)
   const [reply, setReply] = useState('')
 
+  const [quick, setQuick] = useState<CannedResponse[]>([])
+  const [macros, setMacros] = useState<CannedResponse[]>([])
+  const [showMgr, setShowMgr] = useState(false)
+
+  const loadCanned = async () => {
+    setQuick(await canned.list('quick_reply'))
+    setMacros(await canned.list('macro'))
+  }
+
   const load = async (ch: string) => {
     setLoading(true)
     try {
@@ -49,6 +59,7 @@ export default function Inbox() {
 
   useEffect(() => {
     load(channel)
+    loadCanned()
     const t = setInterval(() => load(channel), 6000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,6 +115,13 @@ export default function Inbox() {
               {c.icon} {c.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowMgr(true)}
+            title="Gerenciar respostas rápidas e macros"
+            className="ml-auto px-3 py-1.5 rounded-xl text-xs font-medium bg-surface text-muted hover:bg-surface/70 dark:bg-slate-700 dark:text-slate-300"
+          >
+            ⚡ Respostas
+          </button>
         </div>
         {loading && <p className="p-4 text-sm text-muted">Carregando...</p>}
         {!loading && list.length === 0 && (
@@ -149,7 +167,7 @@ export default function Inbox() {
                 <Bubble key={m.id} who={m.response ? 'agent' : 'client'} text={m.response || m.message} ts={m.created_at} />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
           </>
         ) : detail.kind === 'email' ? (
           <>
@@ -165,7 +183,7 @@ export default function Inbox() {
                 />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
           </>
         ) : (
           <>
@@ -180,10 +198,17 @@ export default function Inbox() {
                 />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
           </>
         )}
       </section>
+
+      {showMgr && (
+        <CannedManager
+          onClose={() => setShowMgr(false)}
+          onChanged={loadCanned}
+        />
+      )}
     </div>
   )
 }
@@ -235,13 +260,62 @@ function ReplyBox({
   value,
   onChange,
   onSend,
+  quick,
+  macros,
 }: {
   value: string
   onChange: (v: string) => void
   onSend: () => void
+  quick: CannedResponse[]
+  macros: CannedResponse[]
 }) {
+  const [open, setOpen] = useState(false)
+  const insert = (text: string) => {
+    onChange(value ? `${value}\n${text}` : text)
+    setOpen(false)
+  }
   return (
-    <div className="p-4 bg-white border-t border-slate-200 flex gap-2 dark:bg-slate-800 dark:border-slate-700">
+    <div className="p-4 bg-white border-t border-slate-200 flex gap-2 relative dark:bg-slate-800 dark:border-slate-700">
+      {open && (
+        <div className="absolute bottom-16 left-4 right-4 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-700 dark:border-slate-600">
+          {quick.length > 0 && (
+            <div className="px-3 pt-2 pb-1 text-[11px] uppercase text-muted">Respostas rápidas</div>
+          )}
+          {quick.map((q) => (
+            <button
+              key={q.id}
+              onClick={() => insert(q.content)}
+              className="w-full text-left px-3 py-2 hover:bg-surface text-sm dark:hover:bg-slate-600"
+            >
+              <div className="font-medium">{q.title}</div>
+              <div className="text-xs text-muted truncate">{q.content}</div>
+            </button>
+          ))}
+          {macros.length > 0 && (
+            <div className="px-3 pt-2 pb-1 text-[11px] uppercase text-muted border-t border-slate-100 dark:border-slate-600">Macros</div>
+          )}
+          {macros.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => insert(m.content)}
+              className="w-full text-left px-3 py-2 hover:bg-surface text-sm dark:hover:bg-slate-600"
+            >
+              <div className="font-medium">{m.title}</div>
+              <div className="text-xs text-muted truncate">{m.content}</div>
+            </button>
+          ))}
+          {quick.length === 0 && macros.length === 0 && (
+            <div className="px-3 py-3 text-sm text-muted">Nenhuma resposta cadastrada.</div>
+          )}
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Inserir resposta rápida / macro"
+        className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+      >
+        ⚡
+      </button>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -255,6 +329,149 @@ function ReplyBox({
       >
         Enviar
       </button>
+    </div>
+  )
+}
+
+function CannedManager({
+  onClose,
+  onChanged,
+}: {
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [tab, setTab] = useState<'quick_reply' | 'macro'>('quick_reply')
+  const [items, setItems] = useState<CannedResponse[]>([])
+  const [editing, setEditing] = useState<CannedResponse | null>(null)
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [err, setErr] = useState('')
+
+  const reload = async () => {
+    setItems(await canned.list(tab))
+  }
+  useEffect(() => {
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  const startNew = () => {
+    setEditing(null)
+    setTitle('')
+    setContent('')
+    setErr('')
+  }
+  const startEdit = (it: CannedResponse) => {
+    setEditing(it)
+    setTitle(it.title)
+    setContent(it.content)
+    setErr('')
+  }
+  const save = async () => {
+    if (!title.trim() || !content.trim()) {
+      setErr('Preencha título e conteúdo.')
+      return
+    }
+    try {
+      if (editing) await canned.update(tab, editing.id, { title, content })
+      else await canned.create({ kind: tab, title, content })
+      startNew()
+      await reload()
+      onChanged()
+    } catch {
+      setErr('Falha ao salvar.')
+    }
+  }
+  const remove = async (id: number) => {
+    await canned.remove(tab, id)
+    await reload()
+    onChanged()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-[640px] max-w-[92vw] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-5 dark:bg-slate-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-lg font-semibold text-ink">Respostas rápidas & Macros</h2>
+          <div className="ml-auto flex gap-1">
+            <button
+              onClick={() => { setTab('quick_reply'); startNew() }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
+                tab === 'quick_reply' ? 'bg-brand-600 text-white' : 'bg-surface text-muted dark:bg-slate-700'
+              }`}
+            >
+              Respostas rápidas
+            </button>
+            <button
+              onClick={() => { setTab('macro'); startNew() }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium ${
+                tab === 'macro' ? 'bg-brand-600 text-white' : 'bg-surface text-muted dark:bg-slate-700'
+              }`}
+            >
+              Macros
+            </button>
+          </div>
+          <button onClick={onClose} className="ml-2 text-muted">✕</button>
+        </div>
+
+        <div className="grid grid-cols-[1fr_280px] gap-4">
+          <div className="space-y-2">
+            {items.length === 0 && (
+              <p className="text-sm text-muted">Nenhum item cadastrado.</p>
+            )}
+            {items.map((it) => (
+              <div
+                key={it.id}
+                className="border border-slate-200 rounded-xl p-3 dark:border-slate-700"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-ink">{it.title}</span>
+                  <div className="ml-auto flex gap-2 text-xs">
+                    <button onClick={() => startEdit(it)} className="text-brand-600">Editar</button>
+                    <button onClick={() => remove(it.id)} className="text-red-600">Excluir</button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted mt-1 whitespace-pre-wrap">{it.content}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-3 h-fit dark:border-slate-700">
+            <div className="text-sm font-medium mb-2 text-ink">
+              {editing ? 'Editar' : 'Novo'} {tab === 'quick_reply' ? 'resposta rápida' : 'macro'}
+            </div>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Título"
+              className="w-full px-3 py-2 mb-2 rounded-lg border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600"
+            />
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Conteúdo da mensagem"
+              className="w-full px-3 py-2 mb-2 rounded-lg border border-slate-200 text-sm h-28 dark:bg-slate-700 dark:border-slate-600"
+            />
+            {err && <div className="text-xs text-red-600 mb-2">{err}</div>}
+            <div className="flex gap-2">
+              <button
+                onClick={save}
+                className="px-3 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700"
+              >
+                Salvar
+              </button>
+              {editing && (
+                <button onClick={startNew} className="px-3 py-2 rounded-lg text-sm text-muted">
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

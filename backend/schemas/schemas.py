@@ -280,6 +280,28 @@ class WidgetLeadIn(BaseModel):
     message: str = ""
 
 
+class CannedResponseCreate(BaseModel):
+    kind: str = "quick_reply"  # quick_reply | macro
+    title: str
+    content: str
+
+
+class CannedResponseUpdate(BaseModel):
+    kind: str | None = None
+    title: str | None = None
+    content: str | None = None
+
+
+class CannedResponseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    company_id: int
+    kind: str
+    title: str
+    content: str
+    created_at: datetime
+
+
 class WebsiteVisitorCreate(BaseModel):
     session_id: str
     name: str = ""
