@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exemplo de site do cliente — Widget Convexo</title>
+    <style>
+      body {
+        font-family: Inter, system-ui, Arial, sans-serif;
+        margin: 0;
+        padding: 48px;
+        background: #f6f7f9;
+        color: #0f172a;
+      }
+      .card {
+        max-width: 640px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 24px;
+      }
+      code {
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Loja Exemplo</h1>
+      <p>Página de demonstração do cliente. O widget do Convexo aparece no canto inferior direito.</p>
+      <p>
+        Para testar, abra esta página com <code>?token=SEU_TOKEN&amp;api=http://localhost:8000</code>
+        (ex.: <code>example.html?token=abc&amp;api=http://localhost:8000</code>).
+      </p>
+    </div>
+
+    <!-- Elemento onde o widget é montado -->
+    <div id="convexo-chat"></div>
+
+    <!-- Lê token e api da query string e injeta nos atributos antes do widget iniciar -->
+    <script>
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var mount = document.getElementById("convexo-chat");
+        var token = params.get("token");
+        var api = params.get("api");
+        if (token) mount.setAttribute("data-token", token);
+        if (api) mount.setAttribute("data-api", api);
+        if (!token) {
+          console.warn("[Convexo] Faltando ?token= na URL do exemplo.");
+        }
+      })();
+    </script>
+
+    <!-- Bundle do widget (gerado por: npm install && npm run build) -->
+    <script src="./dist/widget.iife.js"></script>
+  </body>
+</html>

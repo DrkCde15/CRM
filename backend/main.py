@@ -2,7 +2,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from routers import appointments, auth, clients, notifications, stats, tickets, webhook
+from routers import (
+    appointments,
+    auth,
+    clients,
+    email_channel,
+    inbox,
+    notifications,
+    stats,
+    tickets,
+    webhook,
+    website_chat,
+)
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -38,6 +49,9 @@ app.include_router(appointments.router)
 app.include_router(stats.router)
 app.include_router(webhook.router)
 app.include_router(notifications.router)
+app.include_router(email_channel.router)
+app.include_router(website_chat.router)
+app.include_router(inbox.router)
 
 
 @app.get("/health")

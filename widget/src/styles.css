@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.cvx-root {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483000;
+  font-family: Inter, system-ui, Arial, sans-serif;
+}
+.cvx-root.left {
+  right: auto;
+  left: 20px;
+}
+.cvx-bubble {
+  width: 60px;
+  height: 60px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: 28px;
+}
+.cvx-panel {
+  width: 360px;
+  max-width: 92vw;
+  height: 520px;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cvx-header {
+  padding: 14px 16px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cvx-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  background: #f6f7f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cvx-msg {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.cvx-msg.visitor {
+  align-self: flex-end;
+  background: var(--cvx-primary, #059669);
+  color: #fff;
+}
+.cvx-msg.agent {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+.cvx-input {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+.cvx-input input {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  outline: none;
+  font-size: 14px;
+}
+.cvx-input button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: #fff;
+  cursor: pointer;
+  background: var(--cvx-primary, #059669);
+}
+.cvx-typing {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+  padding: 0 14px 6px;
+}
+.cvx-dark {
+  background: #0f172a;
+}
+.cvx-dark .cvx-messages {
+  background: #1e293b;
+}
+.cvx-dark .cvx-msg.agent {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+.cvx-dark .cvx-input {
+  background: #0f172a;
+  border-color: #334155;
+}
+.cvx-dark .cvx-input input {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}

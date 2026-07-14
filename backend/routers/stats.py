@@ -5,7 +5,17 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.deps import get_current_user
-from models.models import Appointment, Client, Conversation, Ticket, User
+from models.models import (
+    Appointment,
+    Client,
+    Conversation,
+    EmailConversation,
+    EmailMessage,
+    Ticket,
+    User,
+    WebsiteConversation,
+    WebsiteMessage,
+)
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -43,6 +53,22 @@ def stats(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
         .count()
     )
 
+    total_emails = db.query(EmailMessage).count()
+    email_conversations = db.query(EmailConversation).count()
+    total_chats = db.query(WebsiteMessage).count()
+    website_conversations = db.query(WebsiteConversation).count()
+    open_chats = (
+        db.query(WebsiteConversation).filter_by(status="open").count()
+    )
+    closed_chats = (
+        db.query(WebsiteConversation).filter_by(status="closed").count()
+    )
+    tickets_converted = (
+        db.query(Ticket)
+        .filter(Ticket.tipo.in_(["email", "chat"]))
+        .count()
+    )
+
     return {
         "total_clients": total_clients,
         "total_conversations": total_conversations,
@@ -51,4 +77,21 @@ def stats(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
         "conversations_today": conversations_today,
         "tickets_today": tickets_today,
         "tickets_by_status": tickets_by_status,
+        "channels": {
+            "whatsapp": {
+                "conversations": total_conversations,
+                "messages": db.query(Conversation).count(),
+            },
+            "email": {
+                "conversations": email_conversations,
+                "messages": total_emails,
+            },
+            "website": {
+                "conversations": website_conversations,
+                "messages": total_chats,
+                "open": open_chats,
+                "closed": closed_chats,
+            },
+        },
+        "tickets_converted": tickets_converted,
     }

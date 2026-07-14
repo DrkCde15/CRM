@@ -60,6 +60,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/dashboard', label: 'Dashboard' },
   ]
   if (user?.role === 'admin') {
+    links.push({ to: '/channels', label: 'Canais' })
     links.push({ to: '/users', label: 'Usuários' })
   }
 

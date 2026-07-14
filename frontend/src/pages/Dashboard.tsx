@@ -71,6 +71,44 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-8 dark:bg-slate-800 dark:border-slate-700">
+        <h2 className="text-sm font-semibold text-ink mb-3">Conversas por canal</h2>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+            <div className="flex items-center gap-2 text-sm font-medium text-ink">
+              <span>💬</span> WhatsApp
+            </div>
+            <div className="text-xs text-muted mt-1">
+              {data.channels.whatsapp.conversations} conversas · {data.channels.whatsapp.messages} mensagens
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+            <div className="flex items-center gap-2 text-sm font-medium text-ink">
+              <span>✉️</span> E-mail
+            </div>
+            <div className="text-xs text-muted mt-1">
+              {data.channels.email.conversations} conversas · {data.channels.email.messages} mensagens
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+            <div className="flex items-center gap-2 text-sm font-medium text-ink">
+              <span>🌐</span> Website
+            </div>
+            <div className="text-xs text-muted mt-1">
+              {data.channels.website.conversations} conversas · {data.channels.website.messages} mensagens
+            </div>
+            <div className="text-xs text-muted">
+              {data.channels.website.open} abertas · {data.channels.website.closed} fechadas
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-8 dark:bg-slate-800 dark:border-slate-700">
+        <h2 className="text-sm font-semibold text-ink mb-3">Chamados convertidos (e-mail/chat)</h2>
+        <div className="text-2xl font-bold text-ink">{data.tickets_converted}</div>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
         <h2 className="text-sm font-semibold text-ink mb-3">Chamados por status</h2>
         <div className="flex gap-3 flex-wrap">

@@ -9,6 +9,7 @@ import Tickets from './pages/Tickets'
 import Appointments from './pages/Appointments'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
+import Channels from './pages/Channels'
 import { useAuth } from './store'
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -54,6 +55,14 @@ export default function App() {
         element={
           <Protected>
             <Dashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/channels"
+        element={
+          <Protected>
+            <Channels />
           </Protected>
         }
       />

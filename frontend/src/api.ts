@@ -3,11 +3,17 @@ import type {
   Appointment,
   Client,
   Conversation,
+  EmailAccount,
+  EmailConversation,
+  InboxItem,
   NotificationList,
   Paginated,
   Stats,
   Ticket,
   User,
+  WebsiteConversation,
+  WebsiteMessage,
+  WidgetConfig,
 } from './types'
 
 const api = axios.create({
@@ -79,6 +85,60 @@ export const notifications = {
   list: async () => (await api.get<NotificationList>('/notifications')).data,
   markRead: async (id: number) => (await api.post(`/notifications/${id}/read`)).data,
   markAllRead: async () => (await api.post('/notifications/read-all')).data,
+}
+
+export const inbox = {
+  list: async (channel?: string) =>
+    (await api.get<InboxItem[]>('/inbox', { params: channel ? { channel } : {} })).data,
+  channels: async () => (await api.get<Record<string, unknown>>('/inbox/channels')).data,
+}
+
+export const emailChannel = {
+  accounts: async () => (await api.get<EmailAccount[]>('/email/accounts')).data,
+  create: async (body: Partial<EmailAccount> & { password?: string }) =>
+    (await api.post<EmailAccount>('/email/accounts', body)).data,
+  update: async (id: number, body: Partial<EmailAccount> & { password?: string }) =>
+    (await api.put<EmailAccount>(`/email/accounts/${id}`, body)).data,
+  remove: async (id: number) => (await api.delete(`/email/accounts/${id}`)).data,
+  conversations: async (skip = 0, limit = 50) =>
+    (await api.get<Paginated<EmailConversation>>('/email/conversations', {
+      params: { skip, limit },
+    })).data,
+  conversation: async (id: number) =>
+    (await api.get<EmailConversation>(`/email/conversations/${id}`)).data,
+  send: async (body: {
+    conversation_id?: number
+    account_id?: number
+    to: string
+    subject?: string
+    body_html?: string
+    body_text?: string
+    cc?: string
+    bcc?: string
+    in_reply_to?: string
+  }) => (await api.post('/email/send', body)).data,
+  sync: async (id: number) => (await api.post(`/email/sync/${id}`)).data,
+  syncAll: async () => (await api.post('/email/sync')).data,
+}
+
+export const websiteChat = {
+  configs: async () => (await api.get<WidgetConfig[]>('/widget/config')).data,
+  createConfig: async (body: Partial<WidgetConfig>) =>
+    (await api.post<WidgetConfig>('/widget/config', body)).data,
+  updateConfig: async (id: number, body: Partial<WidgetConfig>) =>
+    (await api.put<WidgetConfig>(`/widget/config/${id}`, body)).data,
+  conversations: async (skip = 0, limit = 50, status?: string) =>
+    (await api.get<WebsiteConversation[]>('/chat/conversations', {
+      params: { skip, limit, ...(status ? { status } : {}) },
+    })).data,
+  history: async (id: number) =>
+    (await api.get<WebsiteMessage[]>(`/chat/history/${id}`)).data,
+  send: async (conversation_id: number, message: string, attachments: unknown[] = []) =>
+    (await api.post('/chat/send', { conversation_id, message, attachments })).data,
+  assign: async (id: number, assigned_user: number | null) =>
+    (await api.post<WebsiteConversation>(`/chat/${id}/assign`, { assigned_user })).data,
+  close: async (id: number) =>
+    (await api.post<WebsiteConversation>(`/chat/${id}/close`)).data,
 }
 
 export default api

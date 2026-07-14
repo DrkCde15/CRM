@@ -9,6 +9,8 @@ httpx
 bcrypt
 email-validator
 alembic
+cryptography
+aiosmtplib
 pytest
 ruff
 black

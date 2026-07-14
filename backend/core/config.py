@@ -49,5 +49,9 @@ class Settings(BaseSettings):
 
     whatsapp_bot_name: str = "Assistente"
 
+    upload_dir: str = "uploads"
+    max_upload_mb: int = 15
+    email_poll_seconds: int = 60
+
 
 settings = Settings()

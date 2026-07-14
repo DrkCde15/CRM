@@ -47,6 +47,31 @@ async def send_email(to: str, subject: str, html: str) -> None:
         await client.post(url, json=payload, headers=headers)
 
 
+async def send_via_google_script(
+    url: str,
+    secret: str,
+    to: str,
+    subject: str,
+    html: str,
+    from_name: str = "",
+) -> bool:
+    if not url:
+        return False
+    payload: dict = {"to": to, "subject": subject, "html": html}
+    if from_name:
+        payload["fromName"] = from_name
+    if secret:
+        payload["secret"] = secret
+    headers = {"X-Script-Secret": secret} if secret else {}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+        return resp.status_code < 300
+    except Exception as e:  # noqa: BLE001 - não deve quebrar o fluxo de envio
+        log.error("[email:script:error] falha ao enviar via Google Script: %s", e)
+        return False
+
+
 async def notify_all_users(subject: str, title: str, body: str) -> None:
     html = render_html(title, body)
     db = SessionLocal()
