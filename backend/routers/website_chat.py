@@ -82,12 +82,13 @@ def _create_widget_lead(
         name=name,
         email=email,
         phone=phone,
+        company_id=cfg.company_id,
     )
     db.add(visitor)
     db.commit()
     db.refresh(visitor)
 
-    conv = WebsiteConversation(visitor_id=visitor.id, status="open")
+    conv = WebsiteConversation(visitor_id=visitor.id, status="open", company_id=cfg.company_id)
     db.add(conv)
     db.commit()
     db.refresh(conv)
@@ -218,9 +219,9 @@ def list_chat_conversations(
     limit: int = Query(50, ge=1, le=200),
     status: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    q = db.query(WebsiteConversation)
+    q = db.query(WebsiteConversation).filter_by(company_id=current_user.company_id)
     if status:
         q = q.filter_by(status=status)
     return q.order_by(WebsiteConversation.started_at.desc()).offset(skip).limit(limit).all()
@@ -228,8 +229,11 @@ def list_chat_conversations(
 
 @router.get("/chat/history/{conversation_id}", response_model=list[WebsiteMessageOut])
 def chat_history(
-    conversation_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    conv = db.query(WebsiteConversation).filter_by(id=conversation_id, company_id=current_user.company_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada")
     return (
         db.query(WebsiteMessage)
         .filter_by(conversation_id=conversation_id)
@@ -289,8 +293,11 @@ def chat_assign(
     conversation_id: int,
     body: ChatAssign,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    conv = db.query(WebsiteConversation).filter_by(id=conversation_id, company_id=current_user.company_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada")
     try:
         return chat.assign_conversation(db, conversation_id, body.assigned_user)
     except LookupError as err:
@@ -299,8 +306,11 @@ def chat_assign(
 
 @router.post("/chat/{conversation_id}/close", response_model=WebsiteConversationOut)
 def chat_close(
-    conversation_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    conv = db.query(WebsiteConversation).filter_by(id=conversation_id, company_id=current_user.company_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada")
     try:
         return chat.close_conversation(db, conversation_id)
     except LookupError as err:

@@ -10,7 +10,7 @@ from core.config import settings
 from core.database import SessionLocal
 from core.deps import get_current_user, optional_current_user
 from core.security import create_access_token, hash_password, validate_password, verify_password
-from models.models import PasswordReset, User
+from models.models import Company, PasswordReset, User
 from schemas.schemas import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
@@ -49,8 +49,10 @@ def _get_user_by_email(db, email):
     return db.query(User).filter_by(email=email).first()
 
 
-def _list_users(db):
-    return db.query(User).order_by(User.created_at.asc()).all()
+def _list_users(db, company_id):
+    return (
+        db.query(User).filter_by(company_id=company_id).order_by(User.created_at.asc()).all()
+    )
 
 
 @router.post("/register", response_model=UserOut)
@@ -62,6 +64,9 @@ def register(body: UserCreate, current: User | None = Depends(optional_current_u
             raise HTTPException(status_code=403, detail="Only an admin can register users")
         if _get_user_by_email(db, body.email):
             raise HTTPException(status_code=400, detail="Email already registered")
+        if not db.query(Company).filter_by(id=1).first():
+            db.add(Company(id=1, name="Empresa Padrão"))
+            db.commit()
         try:
             validate_password(body.password)
         except ValueError as e:
@@ -71,6 +76,7 @@ def register(body: UserCreate, current: User | None = Depends(optional_current_u
             name=body.name,
             hashed_password=hash_password(body.password),
             role=body.role,
+            company_id=1,
         )
         db.add(user)
         db.commit()
@@ -109,7 +115,7 @@ def list_users(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only admins can list users")
     db = SessionLocal()
     try:
-        return _list_users(db)
+        return _list_users(db, user.company_id)
     finally:
         db.close()
 

@@ -1,4 +1,6 @@
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from core.config import settings
+
+logger = logging.getLogger("convexo")
 from routers import (
     appointments,
     auth,
@@ -20,7 +24,18 @@ from routers import (
     website_chat,
 )
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    issues = settings.validate()
+    if issues:
+        for msg in issues:
+            logger.warning("CONFIG: %s", msg)
+    else:
+        logger.info("Configuração validada: OK")
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

@@ -13,12 +13,12 @@ def list_notifications(user: User = Depends(get_current_user)):
     try:
         items = (
             db.query(Notification)
-            .filter_by(user_id=user.id)
+            .filter_by(user_id=user.id, company_id=user.company_id)
             .order_by(Notification.created_at.desc())
             .limit(30)
             .all()
         )
-        unread = db.query(Notification).filter_by(user_id=user.id, read=False).count()
+        unread = db.query(Notification).filter_by(user_id=user.id, company_id=user.company_id, read=False).count()
         return {"items": items, "unread_count": unread}
     finally:
         db.close()
@@ -28,7 +28,7 @@ def list_notifications(user: User = Depends(get_current_user)):
 def mark_read(notif_id: int, user: User = Depends(get_current_user)):
     db = SessionLocal()
     try:
-        notif = db.get(Notification, notif_id)
+        notif = db.query(Notification).filter_by(id=notif_id, company_id=user.company_id).first()
         if not notif or notif.user_id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Notificação não encontrada"
@@ -44,7 +44,7 @@ def mark_read(notif_id: int, user: User = Depends(get_current_user)):
 def mark_all_read(user: User = Depends(get_current_user)):
     db = SessionLocal()
     try:
-        db.query(Notification).filter_by(user_id=user.id, read=False).update(
+        db.query(Notification).filter_by(user_id=user.id, company_id=user.company_id, read=False).update(
             {Notification.read: True}
         )
         db.commit()

@@ -26,8 +26,8 @@ def _admin(user: User) -> None:
 
 
 @router.get("/accounts", response_model=list[EmailAccountOut])
-def list_accounts(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return db.query(EmailAccount).order_by(EmailAccount.id.desc()).all()
+def list_accounts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(EmailAccount).filter_by(company_id=current_user.company_id).order_by(EmailAccount.id.desc()).all()
 
 
 @router.post("/accounts", response_model=EmailAccountOut)
@@ -60,9 +60,9 @@ def create_account(
 
 @router.get("/accounts/{account_id}", response_model=EmailAccountOut)
 def get_account(
-    account_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    account = db.get(EmailAccount, account_id)
+    account = db.query(EmailAccount).filter_by(id=account_id, company_id=current_user.company_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Conta não encontrada")
     return account
@@ -76,7 +76,7 @@ def update_account(
     user: User = Depends(get_current_user),
 ):
     _admin(user)
-    account = db.get(EmailAccount, account_id)
+    account = db.query(EmailAccount).filter_by(id=account_id, company_id=user.company_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Conta não encontrada")
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -98,7 +98,7 @@ def delete_account(
     account_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     _admin(user)
-    account = db.get(EmailAccount, account_id)
+    account = db.query(EmailAccount).filter_by(id=account_id, company_id=user.company_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Conta não encontrada")
     db.delete(account)
@@ -113,9 +113,9 @@ def list_conversations(
     ticket_id: int | None = None,
     account_id: int | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    q = db.query(EmailConversation)
+    q = db.query(EmailConversation).filter_by(company_id=current_user.company_id)
     if ticket_id:
         q = q.filter_by(ticket_id=ticket_id)
     if account_id:
@@ -127,9 +127,9 @@ def list_conversations(
 
 @router.get("/conversations/{conversation_id}", response_model=EmailConversationOut)
 def get_conversation(
-    conversation_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    conv = db.get(EmailConversation, conversation_id)
+    conv = db.query(EmailConversation).filter_by(id=conversation_id, company_id=current_user.company_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversa não encontrada")
     return conv
@@ -140,11 +140,11 @@ async def send_email(
     body: EmailSend,
     background: BackgroundTasks,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     account = None
     if body.conversation_id:
-        conv = db.get(EmailConversation, body.conversation_id)
+        conv = db.query(EmailConversation).filter_by(id=body.conversation_id, company_id=current_user.company_id).first()
         if not conv:
             raise HTTPException(status_code=404, detail="Conversa não encontrada")
         account = db.get(EmailAccount, conv.account_id)
@@ -179,6 +179,7 @@ async def send_email(
     if body.conversation_id:
         msg = EmailMessage(
             conversation_id=body.conversation_id,
+            company_id=conv.company_id,
             sender=account.email,
             recipient=body.to,
             cc=body.cc,
@@ -197,9 +198,9 @@ async def send_email(
 
 @router.post("/sync/{account_id}")
 async def sync_account(
-    account_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    account = db.get(EmailAccount, account_id)
+    account = db.query(EmailAccount).filter_by(id=account_id, company_id=current_user.company_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Conta não encontrada")
     count = await email_channel.sync_account(db, account)

@@ -100,7 +100,7 @@ Cada camada é desacoplada: a Inbox consome os canais, os canais alimentam ticke
 
 ## Arquitetura Multiempresa (Multi-Tenant)
 
-O sistema está preparado para evoluir para uma arquitetura **Multi-Tenant**, onde cada empresa possui seu próprio ambiente lógico e isolado. Cada tenant concentra:
+O sistema já implementa isolamento lógico **Multi-Tenant**: cada empresa (tenant) possui seu próprio ambiente isolado por `company_id`. Cada tenant concentra:
 
 - Usuários
 - Clientes
@@ -132,7 +132,7 @@ Empresa B
 └── Widget
 ```
 
-A ativação do modo Multi-Tenant faz parte do **roadmap**. Toda a arquitetura (namespaces por empresa, tokens de widget, configurações e métricas) deve permanecer preparada para essa evolução, sem retrabalho estrutural.
+O modo Multi-Tenant está **ativo**: todo o acesso a dados (usuários, clientes, tickets, agendamentos, conversas, respostas rápidas, widget, canais e métricas) é filtrado por `company_id = user.company_id` nos routers. A `Company` padrão (`id=1`, `"Empresa Padrão"`) é criada automaticamente no primeiro cadastro. A criação de novas empresas via auto-cadastro (signup que gera seu próprio tenant) e convites permanecem no **roadmap**.
 
 ---
 
@@ -188,6 +188,8 @@ O primeiro cadastro pela tela de Registro cria o usuário **admin** inicial.
 > Acesse `http://localhost:8000/` (API e app ficam na mesma origem; o `VITE_API_URL` pode ficar vazio). O exemplo do widget fica em `http://localhost:8000/widget/example.html`.
 >
 > Limitação: deep-links diretos para rotas autenticadas (`/inbox`, `/tickets`, etc.) enquanto deslogado retornam o `401` da API em vez do app — navegue pelo app após o login. Em produço, sirva o SPA atrás de um proxy reverso com fallback para `index.html`.
+
+> Na subida, o backend valida o `.env` (via `settings.validate()`) e emite **warnings** no log se faltarem `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_ORIGINS` ou `API_GROQ` (quando `LLM_PROVIDER=groq`). Corrija-os antes de usar em produção.
 
 ### 2. Frontend (React — porta 5173)
 
@@ -272,14 +274,39 @@ Todos os canais aparecem numa única lista (`frontend/src/pages/Inbox.tsx`), com
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/inbox?channel=whatsapp\|email\|website` | Lista unificada (`InboxItem`: canal, assunto, última mensagem, status, `ticket_id`) |
+| `GET` | `/inbox?channel=whatsapp\|email\|website&include_archived=` | Lista unificada (`InboxItem`: canal, assunto, última mensagem, status, `ticket_id`, `client_tipo`, `read`, `archived`) |
 | `GET` | `/inbox/channels` | Status de quais canais estão configurados |
+| `GET` | `/inbox/gateway-status` | Status da conexão WhatsApp via gateway (`{connected, detail}`) |
+| `PATCH` | `/inbox/whatsapp/{id}/read` | Marca a conversa como lida |
+| `PATCH` | `/inbox/whatsapp/{id}/archive` | Arquiva a conversa |
+| `PATCH` | `/inbox/whatsapp/{id}/unarchive` | Development arquivamento |
 
 - **WhatsApp** → lê `conversations`.
 - **E-mail** → lê `email_conversations` (com `emailChannel.conversation` para o detalhe e resposta por e-mail).
 - **Website** → lê `website_conversations` (com `websiteChat.history` para o detalhe e resposta via chat).
 
 Ao responder no canal **Website** pela Inbox, a mensagem é enviada ao visitante via WebSocket (`/chat/send`). Ao responder no canal **E-mail**, usa `emailChannel.send` (requer uma `EmailAccount` ativa).
+
+### Indicadores e ações na Inbox
+
+- **Tipo do lead** (`Empresa`/`Pessoa`): definido pelo bot no 1º contato (salvo em `client.dados["tipo"]`) e exibido como badge na Inbox e na lista de Clientes.
+- **Não lida / lida**: conversas WhatsApp recebidas entram como *não lidas*; o agente marca como lida (`PATCH .../read`). Itens não lidos aparecem em destaque.
+- **Arquivar**: `PATCH .../archive` (e `.../unarchive`); arquivadas são ocultadas por padrão (`GET /inbox?include_archived=true` para revelá-las).
+- **Status do gateway WhatsApp**: `GET /inbox/gateway-status` retorna `{connected, detail}` (proxy do `/health` do gateway) e alimenta o indicador no navbar.
+
+---
+
+## Clientes
+
+Gestão de clientes (por empresa). O bot qualifica o lead como **Empresa** ou **Pessoa** no primeiro contato e isso é persistido em `dados["tipo"]`.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/clients` | Lista paginada; aceita `search` (nome/telefone) e `skip`/`limit` |
+| `GET` | `/clients/export?search=` | Exporta os clientes filtrados em CSV (`clientes.csv`) |
+| `GET` | `/clients/{id}` | Detalhe (inclui `tipo`) |
+| `PUT` | `/clients/{id}/name` | Atualiza o nome |
+| `GET` | `/clients/{id}/conversations` | Histórico de conversas do cliente |
 
 ---
 
@@ -522,12 +549,16 @@ Recursos: reconexão automática, retry com backoff no webhook, suporte a texto/
 
 ## Assistente Virtual (IA) no WhatsApp
 
-O canal WhatsApp já conta com **auto-atendimento por IA**. Mensagens recebidas pelo gateway são encaminhadas ao backend (`POST /webhook`) e a resposta é gerada por `services/llm.py` (provedor configurável) e devolvida ao cliente via gateway. Qualquer mensagem de texto que **não seja uma opção numérica de menu** (1–7) é respondida diretamente pela IA — não é preciso passar pelo menu antes.
+O canal WhatsApp já conta com **auto-atendimento por IA**. Mensagens recebidas pelo gateway são encaminhadas ao backend (`POST /webhook`) e a resposta é gerada por `services/llm.py` (provedor configurável) e devolvida ao cliente via gateway.
+
+Ao iniciar o contato, o bot qualifica o lead com um menu rápido (**1 Empresa / 2 Pessoa**), guardando a escolha em `client.dados["tipo"]`, e só então apresenta o menu principal. Qualquer mensagem de texto posterior que **não seja uma opção numérica de menu** (1–7) é respondida diretamente pela IA — não é preciso passar pelo menu antes.
 
 Fluxo:
 
 ```
 WhatsApp → Gateway (Baileys, :3001) → POST /webhook (backend :8000)
+                                 ↓
+              whatsapp.process_menu()  →  (1º contato) pergunta Empresa/Pessoa → guarda em dados["tipo"]
                                  ↓
               whatsapp.process_menu()  →  texto que não é opção de menu (1–7) retorna ação "ai"
                                  ↓
@@ -653,7 +684,7 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 | Marketplace | 📋 Planejado |
 | Plugins | 📋 Planejado |
 | Mobile | 📋 Planejado |
-| Multi-Tenant | 📋 Planejado |
+| Multi-Tenant (isolamento por `company_id`) | ✅ Disponível |
 | Auditoria | 📋 Planejado |
 | Logs | 📋 Planejado |
 

@@ -6,6 +6,7 @@ import type {
   Conversation,
   EmailAccount,
   EmailConversation,
+  GatewayStatus,
   InboxItem,
   NotificationList,
   Paginated,
@@ -64,6 +65,22 @@ export const auth = {
 export const clients = {
   list: async (skip = 0, limit = 50) =>
     (await api.get<Paginated<Client>>('/clients', { params: { skip, limit } })).data,
+  search: async (search: string, skip = 0, limit = 50) =>
+    (await api.get<Paginated<Client>>('/clients', { params: { skip, limit, search } })).data,
+  export: async (search = '') => {
+    const { data } = await api.get<Blob>('/clients/export', {
+      params: { search },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'clientes.csv'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
   conversations: async (id: number) =>
     (await api.get<Conversation[]>(`/clients/${id}/conversations`)).data,
 }
@@ -89,9 +106,18 @@ export const notifications = {
 }
 
 export const inbox = {
-  list: async (channel?: string) =>
-    (await api.get<InboxItem[]>('/inbox', { params: channel ? { channel } : {} })).data,
+  list: async (channel?: string, includeArchived = false) =>
+    (await api.get<InboxItem[]>('/inbox', {
+      params: { ...(channel ? { channel } : {}), ...(includeArchived ? { include_archived: true } : {}) },
+    })).data,
   channels: async () => (await api.get<Record<string, unknown>>('/inbox/channels')).data,
+  markRead: async (id: number) =>
+    (await api.patch<{ ok: boolean; read: boolean }>(`/inbox/whatsapp/${id}/read`)).data,
+  archive: async (id: number) =>
+    (await api.patch<{ ok: boolean; archived: boolean }>(`/inbox/whatsapp/${id}/archive`)).data,
+  unarchive: async (id: number) =>
+    (await api.patch<{ ok: boolean; archived: boolean }>(`/inbox/whatsapp/${id}/unarchive`)).data,
+  gatewayStatus: async () => (await api.get<GatewayStatus>('/inbox/gateway-status')).data,
 }
 
 export const emailChannel = {

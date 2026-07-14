@@ -42,7 +42,15 @@ def _get_or_create_client(db, phone: str) -> Client:
 
 
 def _save(db, client_id: int, message: str, response: str = "", type_: str = "texto") -> None:
-    db.add(Conversation(client_id=client_id, message=message, response=response, type=type_))
+    db.add(
+        Conversation(
+            client_id=client_id,
+            message=message,
+            response=response,
+            type=type_,
+            read=not bool(message),
+        )
+    )
     db.commit()
 
 

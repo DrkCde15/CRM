@@ -11,6 +11,7 @@ export interface Client {
   phone: string
   name: string
   estado: string
+  tipo?: string | null
   created_at: string
 }
 
@@ -151,6 +152,14 @@ export interface InboxItem {
   status: string
   client_id?: number | null
   ticket_id?: number | null
+  client_tipo?: string | null
+  read: boolean
+  archived: boolean
+}
+
+export interface GatewayStatus {
+  connected: boolean
+  detail: string
 }
 
 export interface CannedResponse {

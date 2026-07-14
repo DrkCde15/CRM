@@ -15,6 +15,13 @@ const CHANNELS: { key: string; label: string; icon: string }[] = [
   { key: 'website', label: 'Website', icon: '🌐' },
 ]
 
+const tipoLabel: Record<string, string> = { empresa: 'Empresa', pessoa: 'Pessoa' }
+
+function tipoTxt(v?: string | null) {
+  if (!v) return null
+  return tipoLabel[v] || v
+}
+
 type Detail =
   | { kind: 'whatsapp'; items: Conversation[] }
   | { kind: 'email'; conv: EmailConversation }
@@ -33,8 +40,10 @@ function fmt(ts: string | null) {
 
 export default function Inbox() {
   const [channel, setChannel] = useState('')
+  const [includeArchived, setIncludeArchived] = useState(false)
   const [list, setList] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<number | null>(null)
   const [selected, setSelected] = useState<InboxItem | null>(null)
   const [detail, setDetail] = useState<Detail>(null)
   const [reply, setReply] = useState('')
@@ -48,22 +57,22 @@ export default function Inbox() {
     setMacros(await canned.list('macro'))
   }
 
-  const load = async (ch: string) => {
+  const load = async (ch: string, archived: boolean) => {
     setLoading(true)
     try {
-      setList(await inboxApi.list(ch || undefined))
+      setList(await inboxApi.list(ch || undefined, archived))
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    load(channel)
+    load(channel, includeArchived)
     loadCanned()
-    const t = setInterval(() => load(channel), 6000)
+    const t = setInterval(() => load(channel, includeArchived), 6000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel])
+  }, [channel, includeArchived])
 
   const openItem = async (item: InboxItem) => {
     setSelected(item)
@@ -74,6 +83,26 @@ export default function Inbox() {
       setDetail({ kind: 'email', conv: await emailChannel.conversation(item.conversation_id) })
     } else if (item.channel === 'website') {
       setDetail({ kind: 'website', items: await websiteChat.history(item.conversation_id) })
+    }
+  }
+
+  const markRead = async (id: number) => {
+    setBusyId(id)
+    try {
+      await inboxApi.markRead(id)
+      await load(channel, includeArchived)
+    } finally {
+      setBusyId(null)
+    }
+  }
+  const toggleArchive = async (item: InboxItem) => {
+    setBusyId(item.conversation_id)
+    try {
+      if (item.archived) await inboxApi.unarchive(item.conversation_id)
+      else await inboxApi.archive(item.conversation_id)
+      await load(channel, includeArchived)
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -123,35 +152,96 @@ export default function Inbox() {
             ⚡ Respostas
           </button>
         </div>
-        {loading && <p className="p-4 text-sm text-muted">Carregando...</p>}
-        {!loading && list.length === 0 && (
-          <p className="p-4 text-sm text-muted">Nenhuma conversa neste canal.</p>
+        <label className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 text-xs text-muted dark:border-slate-700">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Incluir arquivadas
+        </label>
+        {loading && (
+          <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted">
+            <span className="inline-block w-4 h-4 rounded-full border-2 border-slate-300 border-t-brand-600 animate-spin" />
+            Carregando...
+          </div>
         )}
-        {list.map((it) => (
-          <button
-            key={`${it.channel}-${it.conversation_id}`}
-            onClick={() => openItem(it)}
-            className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-surface transition dark:border-slate-700 ${
-              selected?.conversation_id === it.conversation_id && selected?.channel === it.channel
-                ? 'bg-brand-50 dark:bg-brand-700/20'
-                : ''
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span>{CHANNELS.find((c) => c.key === it.channel)?.icon}</span>
-              <span className="text-sm font-medium text-ink truncate flex-1">
-                {it.subject || '(sem assunto)'}
-              </span>
-              {it.status && (
-                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-100 text-muted dark:bg-slate-700">
-                  {it.status}
+        {!loading && list.length === 0 && (
+          <p className="p-4 text-sm text-muted text-center">Nenhuma conversa encontrada.</p>
+        )}
+        {list.map((it) => {
+          const unread = it.channel === 'whatsapp' && it.read === false
+          const tt = tipoTxt(it.client_tipo)
+          return (
+            <button
+              key={`${it.channel}-${it.conversation_id}`}
+              onClick={() => openItem(it)}
+              className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-surface transition dark:border-slate-700 ${
+                unread ? 'bg-brand-50/60 dark:bg-brand-700/10' : ''
+              } ${
+                selected?.conversation_id === it.conversation_id && selected?.channel === it.channel
+                  ? 'bg-brand-50 dark:bg-brand-700/20'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>{CHANNELS.find((c) => c.key === it.channel)?.icon}</span>
+                {unread && (
+                  <span
+                    title="Não lida"
+                    className="w-2 h-2 rounded-full bg-brand-600 shrink-0"
+                  />
+                )}
+                <span
+                  className={`text-sm truncate flex-1 ${
+                    unread ? 'font-bold text-ink dark:text-slate-100' : 'font-medium text-ink dark:text-slate-100'
+                  }`}
+                >
+                  {it.subject || '(sem assunto)'}
                 </span>
-              )}
-            </div>
-            <div className="text-xs text-muted truncate mt-0.5">{it.last_message}</div>
-            <div className="text-[10px] text-muted mt-0.5">{fmt(it.last_at)}</div>
-          </button>
-        ))}
+                {tt && (
+                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-700/30 dark:text-violet-300">
+                    {tt}
+                  </span>
+                )}
+                {it.status && (
+                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-100 text-muted dark:bg-slate-700">
+                    {it.status}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted truncate mt-0.5">{it.last_message}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="text-[10px] text-muted">{fmt(it.last_at)}</div>
+                {it.channel === 'whatsapp' && !it.read && (
+                  <button
+                    disabled={busyId === it.conversation_id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      markRead(it.conversation_id)
+                    }}
+                    className="text-[11px] px-2 py-0.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    Marcar como lida
+                  </button>
+                )}
+                {it.channel === 'whatsapp' && (
+                  <button
+                    disabled={busyId === it.conversation_id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleArchive(it)
+                    }}
+                    className="text-[11px] px-2 py-0.5 rounded-lg border border-slate-200 text-muted hover:bg-surface dark:border-slate-600 dark:hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {it.archived ? 'Desarquivar' : 'Arquivar'}
+                  </button>
+                )}
+              </div>
+            </button>
+          )
+        })}
       </aside>
 
       <section className="flex flex-col bg-surface">

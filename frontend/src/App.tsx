@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Inbox from './pages/Inbox'
+import Clients from './pages/Clients'
 import Tickets from './pages/Tickets'
 import Appointments from './pages/Appointments'
 import Dashboard from './pages/Dashboard'
@@ -31,6 +32,14 @@ export default function App() {
         element={
           <Protected>
             <Inbox />
+          </Protected>
+        }
+      />
+      <Route
+        path="/clients"
+        element={
+          <Protected>
+            <Clients />
           </Protected>
         }
       />

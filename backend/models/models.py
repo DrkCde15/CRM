@@ -14,7 +14,18 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(255), default="")
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(50), default="agent")
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), default="Empresa")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC)
+    )
 
 
 class PasswordReset(Base):
@@ -32,6 +43,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(255))
     body: Mapped[str] = mapped_column(Text, default="")
@@ -44,6 +56,7 @@ class Client(Base):
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     phone: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     estado: Mapped[str] = mapped_column(String(50), default="inicio")
@@ -52,6 +65,10 @@ class Client(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
+
+    @property
+    def tipo(self) -> str | None:
+        return (self.dados or {}).get("tipo")
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="client")
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="client")
@@ -62,10 +79,13 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
     message: Mapped[str] = mapped_column(Text, default="")
     response: Mapped[str] = mapped_column(Text, default="")
     type: Mapped[str] = mapped_column(String(50), default="texto")
+    read: Mapped[bool] = mapped_column(Boolean, default=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     client: Mapped["Client"] = relationship(back_populates="conversations")
@@ -75,6 +95,7 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     servico: Mapped[str] = mapped_column(String(255), default="")
@@ -90,6 +111,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     client_id: Mapped[int | None] = mapped_column(
         ForeignKey("clients.id"), nullable=True, index=True
     )
@@ -107,6 +129,7 @@ class Config(Base):
     __tablename__ = "config"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     value: Mapped[str] = mapped_column(Text, default="")
     encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -142,6 +165,7 @@ class EmailConversation(Base):
     __tablename__ = "email_conversations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     client_id: Mapped[int | None] = mapped_column(
         ForeignKey("clients.id"), nullable=True, index=True
     )
@@ -168,6 +192,7 @@ class EmailMessage(Base):
     __tablename__ = "email_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     conversation_id: Mapped[int] = mapped_column(
         ForeignKey("email_conversations.id"), index=True
     )
@@ -192,6 +217,7 @@ class WebsiteVisitor(Base):
     __tablename__ = "website_visitors"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     session_id: Mapped[str] = mapped_column(String(255), index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     email: Mapped[str] = mapped_column(String(255), default="")
@@ -216,6 +242,7 @@ class WebsiteConversation(Base):
     __tablename__ = "website_conversations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     visitor_id: Mapped[int] = mapped_column(
         ForeignKey("website_visitors.id"), index=True
     )
@@ -242,6 +269,7 @@ class WebsiteMessage(Base):
     __tablename__ = "website_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     conversation_id: Mapped[int] = mapped_column(
         ForeignKey("website_conversations.id"), index=True
     )

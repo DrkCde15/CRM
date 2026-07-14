@@ -39,17 +39,17 @@ def list_tickets(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Ticket)
+    q = db.query(Ticket).filter_by(company_id=current_user.company_id)
     total = q.count()
     items = q.order_by(Ticket.created_at.desc()).offset(skip).limit(limit).all()
     return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/{ticket_id}", response_model=TicketOut)
-def get_ticket(ticket_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    ticket = db.get(Ticket, ticket_id)
+def get_ticket(ticket_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    ticket = db.query(Ticket).filter_by(id=ticket_id, company_id=current_user.company_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
@@ -60,13 +60,14 @@ def create_ticket(
     body: TicketCreate,
     background: BackgroundTasks,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     ticket = Ticket(
         titulo=body.titulo,
         descricao=body.descricao,
         tipo=body.tipo,
         client_id=body.client_id,
+        company_id=current_user.company_id,
     )
     db.add(ticket)
     db.commit()
@@ -97,9 +98,9 @@ def update_status(
     ticket_id: int,
     body: TicketStatusUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    ticket = db.get(Ticket, ticket_id)
+    ticket = db.query(Ticket).filter_by(id=ticket_id, company_id=current_user.company_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     ticket.status = body.status
@@ -113,9 +114,9 @@ def push_ticket(
     ticket_id: int,
     background: BackgroundTasks,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    ticket = db.get(Ticket, ticket_id)
+    ticket = db.query(Ticket).filter_by(id=ticket_id, company_id=current_user.company_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     if ticket.taky_task_id:

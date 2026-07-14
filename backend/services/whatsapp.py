@@ -36,6 +36,7 @@ MENU = {
     "reuniao_confirmar": lambda d: f"Confirmar reunião?\nAssunto: {d.get('titulo')}\nData: {d.get('data_hora')}\n\n1 Sim | 0 Cancelar",
     "reuniao_sucesso": "✅ Reunião agendada! O time confirmará em breve.",
     "reuniao_cancelado": "Reunião cancelada.",
+    "tipo_cliente": "🏢 *Você é:* 1 Empresa | 2 Pessoa\n(Digite 1 ou 2)",
 }
 
 
@@ -54,6 +55,7 @@ MENU_BUTTONS: dict[str, list[tuple[str, str]]] = {
     "chamado_confirmar": [("1", "Sim"), ("0", "Cancelar")],
     "reuniao_confirmar": [("1", "Sim"), ("0", "Cancelar")],
     "falando_bot": [("0", "Voltar ao menu")],
+    "tipo_cliente": [("1", "Empresa"), ("2", "Pessoa")],
 }
 
 
@@ -75,6 +77,8 @@ def process_menu(
     estado = client.estado
 
     if estado == "inicio":
+        if not client.dados.get("tipo"):
+            return _go(client, db, "tipo_cliente")
         if t == "1":
             return _go(client, db, "informacoes")
         if t == "2":
@@ -93,6 +97,15 @@ def process_menu(
             return get_menu_text("inicio"), None
         # Qualquer texto que não seja opção de menu vai direto para a IA.
         return None, {"ai": True}
+
+    if estado == "tipo_cliente":
+        if t == "1":
+            _merge(client, db, {"tipo": "empresa"})
+            return _go(client, db, "inicio")
+        if t == "2":
+            _merge(client, db, {"tipo": "pessoa"})
+            return _go(client, db, "inicio")
+        return get_menu_text("tipo_cliente"), None
 
     if estado == "informacoes":
         if t == "0":

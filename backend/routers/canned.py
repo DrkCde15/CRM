@@ -18,11 +18,11 @@ def make_router(kind: str, prefix: str, tag: str) -> APIRouter:
 
     @router.get("", response_model=list[CannedResponseOut])
     def list_items(
-        db: Session = Depends(get_db), _: User = Depends(get_current_user)
+        db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
     ):
         return (
             db.query(CannedResponse)
-            .filter_by(company_id=1, kind=kind)
+            .filter_by(company_id=current_user.company_id, kind=kind)
             .order_by(CannedResponse.created_at.desc())
             .all()
         )
@@ -31,10 +31,10 @@ def make_router(kind: str, prefix: str, tag: str) -> APIRouter:
     def create_item(
         body: CannedResponseCreate,
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user),
     ):
         obj = CannedResponse(
-            company_id=1,
+            company_id=current_user.company_id,
             kind=kind,
             title=body.title,
             content=body.content,
@@ -49,10 +49,10 @@ def make_router(kind: str, prefix: str, tag: str) -> APIRouter:
         item_id: int,
         body: CannedResponseUpdate,
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user),
     ):
-        obj = db.get(CannedResponse, item_id)
-        if not obj or obj.kind != kind:
+        obj = db.query(CannedResponse).filter_by(id=item_id, company_id=current_user.company_id, kind=kind).first()
+        if not obj:
             raise HTTPException(status_code=404, detail="Não encontrado")
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(obj, field, value)
@@ -64,10 +64,10 @@ def make_router(kind: str, prefix: str, tag: str) -> APIRouter:
     def delete_item(
         item_id: int,
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user),
     ):
-        obj = db.get(CannedResponse, item_id)
-        if not obj or obj.kind != kind:
+        obj = db.query(CannedResponse).filter_by(id=item_id, company_id=current_user.company_id, kind=kind).first()
+        if not obj:
             raise HTTPException(status_code=404, detail="Não encontrado")
         db.delete(obj)
         db.commit()

@@ -26,6 +26,7 @@ class UserOut(BaseModel):
     email: EmailStr
     name: str
     role: str
+    company_id: int
     created_at: datetime
 
 
@@ -59,6 +60,7 @@ class ClientOut(BaseModel):
     phone: str
     name: str
     estado: str
+    tipo: str | None = None
     created_at: datetime
 
 
@@ -118,6 +120,7 @@ class WebhookPayload(BaseModel):
     image: str | None = None
     audio: str | None = None
     mimetype: str | None = None
+    tenant_id: int | None = None
 
 
 # ───────────────────────────── Email channel ─────────────────────────────
@@ -383,4 +386,7 @@ class InboxItem(BaseModel):
     status: str
     client_id: int | None = None
     ticket_id: int | None = None
+    client_tipo: str | None = None
+    read: bool = True
+    archived: bool = False
 

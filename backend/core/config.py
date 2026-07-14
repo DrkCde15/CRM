@@ -89,5 +89,18 @@ class Settings(BaseSettings):
     max_upload_mb: int = 15
     email_poll_seconds: int = 60
 
+    def validate(self) -> list[str]:
+        issues: list[str] = []
+        if not self.secret_key or self.secret_key == "change-me-in-production":
+            issues.append("SECRET_KEY não definido ou padrão — gere uma chave forte em .env.")
+        if not self.database_url:
+            issues.append("DATABASE_URL não definido.")
+        if not self.allowed_origins:
+            issues.append("ALLOWED_ORIGINS vazio — defina as origens do frontend/widget.")
+        provider = (self.llm_provider or "groq").lower()
+        if provider == "groq" and not self.api_groq:
+            issues.append("LLM_PROVIDER=groq sem API_GROQ: respostas de IA indisponíveis.")
+        return issues
+
 
 settings = Settings()

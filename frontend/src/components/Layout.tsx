@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth, useTheme } from '../store'
+import { inbox as inboxApi } from '../api'
 import Toaster from './Toaster'
 import NotificationBell from './NotificationBell'
 
@@ -48,13 +49,33 @@ function ThemeToggle() {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user, loadUser } = useAuth()
   const navigate = useNavigate()
+  const [connected, setConnected] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (user === null) loadUser()
   }, [user, loadUser])
 
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      try {
+        const status = await inboxApi.gatewayStatus()
+        if (alive) setConnected(status.connected)
+      } catch {
+        if (alive) setConnected(false)
+      }
+    }
+    poll()
+    const t = setInterval(poll, 15000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [])
+
   const links = [
     { to: '/inbox', label: 'Conversas' },
+    { to: '/clients', label: 'Clientes' },
     { to: '/tickets', label: 'Chamados' },
     { to: '/appointments', label: 'Agendamentos' },
     { to: '/dashboard', label: 'Dashboard' },
@@ -89,6 +110,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <div
+            title="Status da conexão WhatsApp (gateway)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-surface text-muted dark:bg-slate-700"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                connected === null
+                  ? 'bg-slate-400'
+                  : connected
+                  ? 'bg-green-500'
+                  : 'bg-red-500'
+              }`}
+            />
+            WhatsApp: {connected === null ? '...' : connected ? 'conectado' : 'desconectado'}
+          </div>
           <NotificationBell />
           <ThemeToggle />
           <button
