@@ -19,6 +19,7 @@ from routers import (
     email_channel,
     inbox,
     notifications,
+    realtime,
     stats,
     tickets,
     webhook,
@@ -92,6 +93,7 @@ app.include_router(website_chat.router)
 app.include_router(inbox.router)
 app.include_router(canned.router_quick_replies)
 app.include_router(canned.router_macros)
+app.include_router(realtime.router)
 
 
 @app.get("/health")

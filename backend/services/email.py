@@ -72,11 +72,14 @@ async def send_via_google_script(
         return False
 
 
-async def notify_all_users(subject: str, title: str, body: str) -> None:
+async def notify_all_users(subject: str, title: str, body: str, company_id: int | None = None) -> None:
     html = render_html(title, body)
     db = SessionLocal()
     try:
-        recipients = [u.email for u in db.query(User).all() if u.email]
+        q = db.query(User)
+        if company_id is not None:
+            q = q.filter_by(company_id=company_id)
+        recipients = [u.email for u in q.all() if u.email]
     finally:
         db.close()
     for to in recipients:

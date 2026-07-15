@@ -4,6 +4,7 @@ import { tickets as ticketsApi } from '../api'
 import { ApiError } from '../api'
 import type { Ticket } from '../types'
 import { useToasts } from '../store'
+import { registerRealtime } from '../realtime'
 
 const PAGE = 50
 
@@ -49,8 +50,7 @@ export default function Tickets() {
 
   useEffect(() => {
     load(skip)
-    const t = setInterval(() => load(skip), 5000)
-    return () => clearInterval(t)
+    return registerRealtime('tickets', () => load(skip))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip])
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { appointments as apptsApi, ApiError } from '../api'
 import type { Appointment } from '../types'
 import { useToasts } from '../store'
+import { registerRealtime } from '../realtime'
 
 function fmt(ts: string) {
   return new Date(ts).toLocaleString('pt-BR', {
@@ -18,11 +19,14 @@ export default function Appointments() {
   const { push } = useToasts()
 
   useEffect(() => {
-    apptsApi
-      .list()
-      .then(setList)
-      .catch((e) => push('error', e instanceof ApiError ? e.message : 'Erro ao carregar'))
-      .finally(() => setLoading(false))
+    const refresh = () =>
+      apptsApi
+        .list()
+        .then(setList)
+        .catch((e) => push('error', e instanceof ApiError ? e.message : 'Erro ao carregar'))
+        .finally(() => setLoading(false))
+    refresh()
+    return registerRealtime('appointments', refresh)
   }, [push])
 
   return (

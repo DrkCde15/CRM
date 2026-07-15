@@ -8,7 +8,7 @@ from core.database import get_db
 from core.deps import get_current_user
 from models.models import Client, Ticket, User
 from schemas.schemas import Paginated, TicketCreate, TicketOut
-from services import email, notifications, taky
+from services import email, notifications, realtime, taky
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -83,13 +83,17 @@ def create_ticket(
         f"Novo chamado #{ticket.id}",
         "Novo chamado criado",
         body_html,
+        current_user.company_id,
     )
     background.add_task(
         notifications.notify_all,
+        current_user.company_id,
         f"Novo chamado #{ticket.id}",
         ticket.titulo,
-        "/tickets",
+        f"/tickets/{ticket.id}",
     )
+    realtime.refresh("tickets", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
     return ticket
 
 
@@ -106,6 +110,8 @@ def update_status(
     ticket.status = body.status
     db.commit()
     db.refresh(ticket)
+    realtime.refresh("tickets", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
     return ticket
 
 

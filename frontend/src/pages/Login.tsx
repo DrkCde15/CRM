@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { auth, ApiError } from '../api'
 import { useAuth } from '../store'
 import { useToasts } from '../store'
+import PasswordInput from '../components/PasswordInput'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -45,12 +46,12 @@ export default function Login() {
           placeholder="voce@empresa.com"
         />
         <label className="block text-sm text-muted mb-1">Senha</label>
-        <input
-          type="password"
+        <PasswordInput
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-5 px-3 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-brand-500 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+          className="w-full mb-5"
           placeholder="••••••"
+          autoComplete="current-password"
         />
         <button
           type="submit"

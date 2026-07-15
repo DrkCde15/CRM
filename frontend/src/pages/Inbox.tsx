@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { inbox as inboxApi, clients, emailChannel, websiteChat, canned } from '../api'
+import { registerRealtime } from '../realtime'
 import type {
   Conversation,
   CannedResponse,
@@ -69,8 +70,7 @@ export default function Inbox() {
   useEffect(() => {
     load(channel, includeArchived)
     loadCanned()
-    const t = setInterval(() => load(channel, includeArchived), 6000)
-    return () => clearInterval(t)
+    return registerRealtime('inbox', () => load(channel, includeArchived))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel, includeArchived])
 

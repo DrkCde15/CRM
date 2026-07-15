@@ -6,6 +6,7 @@ from core.database import get_db
 from core.deps import get_current_user
 from models.models import Appointment, User
 from schemas.schemas import AppointmentCreate, AppointmentOut
+from services import realtime
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -38,6 +39,8 @@ def create_appointment(
     db.add(appt)
     db.commit()
     db.refresh(appt)
+    realtime.refresh("appointments", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
     return appt
 
 
@@ -54,4 +57,6 @@ def update_status(
     appt.status = body.status
     db.commit()
     db.refresh(appt)
+    realtime.refresh("appointments", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
     return appt

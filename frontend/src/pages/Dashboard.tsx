@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { stats as statsApi, ApiError } from '../api'
 import type { Stats } from '../types'
 import { useToasts } from '../store'
+import { registerRealtime } from '../realtime'
 
 const cards = [
   { key: 'total_clients', label: 'Clientes', color: 'bg-violet-500' },
@@ -17,15 +18,32 @@ const statusLabels: Record<string, string> = {
   fechado: 'Fechado',
 }
 
+function Bar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1">
+        <span className="text-muted">{label}</span>
+        <span className="font-semibold text-ink">{value}</span>
+      </div>
+      <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<Stats | null>(null)
   const { push } = useToasts()
 
   useEffect(() => {
-    statsApi
-      .get()
-      .then(setData)
-      .catch((e) => push('error', e instanceof ApiError ? e.message : 'Erro ao carregar'))
+    const refresh = () =>
+      statsApi
+        .get()
+        .then(setData)
+        .catch((e) => push('error', e instanceof ApiError ? e.message : 'Erro ao carregar'))
+    refresh()
+    return registerRealtime('stats', refresh)
   }, [push])
 
   if (!data) {
@@ -72,36 +90,38 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-8 dark:bg-slate-800 dark:border-slate-700">
-        <h2 className="text-sm font-semibold text-ink mb-3">Conversas por canal</h2>
-        <div className="grid sm:grid-cols-3 gap-3">
-          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
-            <div className="flex items-center gap-2 text-sm font-medium text-ink">
-              <span>💬</span> WhatsApp
+        <h2 className="text-sm font-semibold text-ink mb-1">Conversas por canal</h2>
+        <p className="text-xs text-muted mb-4">Distribuição de conversas por canal (proporcional ao máximo).</p>
+        {(() => {
+          const ch = data.channels
+          const values = {
+            WhatsApp: ch.whatsapp.conversations,
+            'E-mail': ch.email.conversations,
+            Website: ch.website.conversations,
+          }
+          const max = Math.max(1, ...Object.values(values))
+          const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-violet-500']
+          return (
+            <div className="space-y-3">
+              {Object.entries(values).map(([label, value], i) => (
+                <Bar
+                  key={label}
+                  label={`${label} · ${value} conversas`}
+                  value={Math.round((value / max) * 100)}
+                  color={colors[i]}
+                />
+              ))}
+              <div className="flex flex-wrap gap-4 text-[11px] text-muted pt-1">
+                <span>💬 WhatsApp: {ch.whatsapp.messages} mensagens</span>
+                <span>✉️ E-mail: {ch.email.messages} mensagens</span>
+                <span>🌐 Website: {ch.website.messages} mensagens</span>
+                <span>
+                  🌐 Website: {ch.website.open} abertas · {ch.website.closed} fechadas
+                </span>
+              </div>
             </div>
-            <div className="text-xs text-muted mt-1">
-              {data.channels.whatsapp.conversations} conversas · {data.channels.whatsapp.messages} mensagens
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
-            <div className="flex items-center gap-2 text-sm font-medium text-ink">
-              <span>✉️</span> E-mail
-            </div>
-            <div className="text-xs text-muted mt-1">
-              {data.channels.email.conversations} conversas · {data.channels.email.messages} mensagens
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-100 p-3 dark:border-slate-700">
-            <div className="flex items-center gap-2 text-sm font-medium text-ink">
-              <span>🌐</span> Website
-            </div>
-            <div className="text-xs text-muted mt-1">
-              {data.channels.website.conversations} conversas · {data.channels.website.messages} mensagens
-            </div>
-            <div className="text-xs text-muted">
-              {data.channels.website.open} abertas · {data.channels.website.closed} fechadas
-            </div>
-          </div>
-        </div>
+          )
+        })()}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-8 dark:bg-slate-800 dark:border-slate-700">
@@ -110,16 +130,30 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
-        <h2 className="text-sm font-semibold text-ink mb-3">Chamados por status</h2>
-        <div className="flex gap-3 flex-wrap">
-          {Object.entries(data.tickets_by_status).map(([status, count]) => (
-            <div key={status} className="flex items-center gap-2 text-sm">
-              <span className="w-2 h-2 rounded-full bg-brand-500" />
-              <span className="text-muted">{statusLabels[status] || status}:</span>
-              <span className="font-semibold text-ink">{count}</span>
+        <h2 className="text-sm font-semibold text-ink mb-1">Chamados por status</h2>
+        <p className="text-xs text-muted mb-4">Quantidade de chamados por status (proporcional ao máximo).</p>
+        {(() => {
+          const entries = Object.entries(data.tickets_by_status)
+          const max = Math.max(1, ...entries.map(([, c]) => c))
+          const colors: Record<string, string> = {
+            aberto: 'bg-amber-500',
+            andamento: 'bg-brand-500',
+            resolvido: 'bg-emerald-500',
+            fechado: 'bg-slate-400',
+          }
+          return (
+            <div className="space-y-3">
+              {entries.map(([status, count]) => (
+                <Bar
+                  key={status}
+                  label={statusLabels[status] || status}
+                  value={Math.round((count / max) * 100)}
+                  color={colors[status] || 'bg-brand-500'}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          )
+        })()}
       </div>
     </div>
   )

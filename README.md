@@ -167,7 +167,7 @@ source .venv-linux/bin/activate          # venv Linux nativo (evita "database is
 pip install -r requirements.txt
 cp .env.example .env                     # edite as variáveis (ver abaixo)
 alembic upgrade head                     # cria/atualiza o schema do banco
-uvicorn main:app --reload --host0.0.0.0 --port 8000   # http://localhost:8000  (docs em /docs)
+uvicorn main:app --reload --host localhost --port 8000   # http://localhost:8000  (docs em /docs)
 ```
 
 Variáveis mínimas em `backend/.env`:
@@ -496,7 +496,7 @@ Todos esses recursos utilizarão uma **arquitetura desacoplada**, permitindo dif
 
 ### Por e-mail
 
-Ao criar um chamado (`POST /tickets`), o backend dispara e-mails HTML para **todos os usuários cadastrados** (admins e agentes), em background (`services/email.py`).
+Ao criar um chamado (`POST /tickets`), o backend dispara e-mails HTML para **todos os usuários da empresa** (multitenant), em background (`services/email.py`).
 
 O envio é feito **sempre via Google Apps Script**: o backend faz um `POST` JSON `{to, subject, html, fromName?}` para a `EMAIL_GOOGLE_SCRIPT_URL` (um web app deployado que envia o e-mail via `GmailApp`). Se a URL não estiver configurada, o envio é ignorado silenciosamente (apenas log).
 
@@ -504,16 +504,17 @@ O formulário de e-mail do widget também usa esse mesmo caminho, enviando para 
 
 ### Push (navegador)
 
-A página de **Chamados** (`frontend/src/pages/Tickets.tsx`) faz polling a cada 5s. Quando surge um **novo chamado**, ela exibe uma **notificação nativa do navegador** (via [`react-push-notification`](https://github.com/yetanotherreactlibrary/react-push-notification), usando a Notification API) e um toast in-app.
+A página de **Chamados** (`frontend/src/pages/Tickets.tsx`) atualiza em **tempo real** (via WebSocket `/ws`): quando surge um **novo chamado** ou muda seu status, ela exibe uma **notificação nativa do navegador** (via [`react-push-notification`](https://github.com/yetanotherreactlibrary/react-push-notification), usando a Notification API) e um toast in-app.
 
 > Requer que a aba esteja aberta e que o usuário conceda permissão de notificação ao navegador. Não é push em segundo plano (VAPID/Service Worker) — para isso seria necessário um backend de push separado.
 
 ### Central in-app
 
-Além do e-mail e do push do navegador, cada usuário tem um **centro de notificações persistido** no backend. Na criação de um chamado, é gerada uma notificação para **todos os usuários**.
+Além do e-mail e do push do navegador, cada usuário tem um **centro de notificações persistido** no backend. Na criação/atualização de um chamado, é gerada uma notificação **por empresa** (multitenant) com link direto para o ticket (`/tickets/{id}`).
 
-- Ícone de **sino** no navbar com **contador de não lidas** (atualizado a cada 15s).
+- Ícone de **sino** no navbar com **contador de não lidas**.
 - **Dropdown** com a lista de notificações e ação **"Marcar todas como lidas"**; cada item pode ser marcado como lido (e leva ao link do chamado).
+- **Tempo real via WebSocket**: o backend empurra eventos (`{type:"refresh", resource}`) para os clientes conectados em `/ws?token=<JWT>`. O frontend (React) escuta e re-busca o recurso afetado, **substituindo o polling** da inbox, chamados, agendamentos, notificações e dashboard. Reconexão automática a cada ~3s.
 
 Endpoints (`routers/notifications.py`):
 

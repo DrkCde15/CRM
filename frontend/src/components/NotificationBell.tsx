@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notifications as notificationsApi, ApiError } from '../api'
 import { useToasts } from '../store'
+import { registerRealtime } from '../realtime'
 import type { NotificationList } from '../types'
 
 function timeAgo(iso: string): string {
@@ -31,8 +32,11 @@ export default function NotificationBell() {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 15000)
-    return () => clearInterval(t)
+    if (typeof WebSocket === 'undefined') {
+      const t = setInterval(load, 60000)
+      return () => clearInterval(t)
+    }
+    return registerRealtime('notifications', load)
   }, [load])
 
   useEffect(() => {

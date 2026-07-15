@@ -5,7 +5,7 @@ from core.config import settings
 from core.database import SessionLocal
 from models.models import Client, Conversation
 from schemas.schemas import WebhookPayload
-from services import llm, whatsapp
+from services import llm, realtime, whatsapp
 
 router = APIRouter(tags=["webhook"])
 
@@ -77,6 +77,8 @@ async def _process(payload: WebhookPayload) -> None:
         client = _get_or_create_client(db, payload.from_)
         history = _build_history(db, client.id)
         _save(db, client.id, payload.text, type_=payload.type)
+        realtime.refresh("inbox", client.company_id)
+        realtime.refresh("stats", client.company_id)
 
         reply, action = whatsapp.process_menu(payload.from_, payload.text, client, db)
 

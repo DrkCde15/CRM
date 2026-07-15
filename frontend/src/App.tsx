@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -12,6 +13,7 @@ import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Channels from './pages/Channels'
 import { useAuth } from './store'
+import { ensureConnected } from './realtime'
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = useAuth((s) => s.token)
@@ -20,6 +22,12 @@ function Protected({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const token = useAuth((s) => s.token)
+
+  useEffect(() => {
+    if (token) ensureConnected()
+  }, [token])
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

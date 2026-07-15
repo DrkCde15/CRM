@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { auth, ApiError } from '../api'
 import { useToasts } from '../store'
 import { passwordErrors } from '../utils/validation'
+import PasswordInput from '../components/PasswordInput'
 
 const roles = [
   { value: 'admin', label: 'Administrador', desc: 'Acesso total e gestão de usuários' },
@@ -66,12 +67,12 @@ export default function Register() {
           placeholder="voce@empresa.com"
         />
         <label className="block text-sm text-muted mb-1">Senha</label>
-        <input
-          type="password"
+        <PasswordInput
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-2 px-3 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-brand-500 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+          className="w-full mb-2"
           placeholder="••••••"
+          autoComplete="new-password"
         />
         {password && (
           <ul className="mb-3 text-xs space-y-0.5">
@@ -84,12 +85,12 @@ export default function Register() {
           </ul>
         )}
         <label className="block text-sm text-muted mb-1">Confirmar senha</label>
-        <input
-          type="password"
+        <PasswordInput
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="w-full mb-4 px-3 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-brand-500 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+          className="w-full mb-4"
           placeholder="••••••"
+          autoComplete="new-password"
         />
         {confirm && !match && <p className="text-xs text-red-500 mb-3">As senhas não coincidem</p>}
         <label className="block text-sm text-muted mb-2">Tipo de conta</label>
