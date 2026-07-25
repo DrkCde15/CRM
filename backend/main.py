@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -38,7 +39,48 @@ async def lifespan(app: FastAPI):
     # antes (ex.: ao subir de um diretório diferente e criar um crm.db novo).
     Base.metadata.create_all(engine)
     logger.info("Banco de dados: %s", engine.url)
+
+    # ── Auto-start gateway com restart automático ──
+    _gateway_stop = asyncio.Event()
+    _gateway_task: asyncio.Task | None = None
+
+    if settings.auto_start_gateway:
+        gateway_dir = os.path.normpath(os.path.join(_BASE_DIR, settings.gateway_path))
+        if os.path.isdir(gateway_dir):
+
+            async def _run_gateway():
+                retries = 0
+                while not _gateway_stop.is_set():
+                    proc = await asyncio.create_subprocess_exec(
+                        "node", "index.js",
+                        cwd=gateway_dir,
+                    )
+                    logger.info("Gateway WhatsApp iniciado (PID %s)", proc.pid)
+                    retries = 0
+                    await proc.wait()
+                    if _gateway_stop.is_set():
+                        break
+                    retries += 1
+                    delay = min(retries * 2, 30)
+                    logger.warning(
+                        "Gateway encerrado inesperadamente (código %s). "
+                        "Reiniciando em %ss...", proc.returncode, delay,
+                    )
+                    await asyncio.sleep(delay)
+
+            _gateway_task = asyncio.create_task(_run_gateway())
+        else:
+            logger.warning("Diretório do gateway não encontrado: %s", gateway_dir)
+
     yield
+
+    if _gateway_task is not None:
+        _gateway_stop.set()
+        _gateway_task.cancel()
+        try:
+            await _gateway_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)

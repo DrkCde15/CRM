@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     gateway_url: str = "http://localhost:3001"
     whatsapp_webhook_url: str = "http://localhost:8000/webhook"
+    auto_start_gateway: bool = False
+    gateway_path: str = "../gateway"
     frontend_url: str = "http://localhost:5173"
 
     email_google_script_url: Annotated[str, Field(validation_alias="EMAIL_GOOGLE_SCRIPT_URL")] = ""
