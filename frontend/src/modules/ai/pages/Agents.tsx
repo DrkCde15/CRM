@@ -6,6 +6,7 @@ import { Badge } from '../../../core/components/ui/Badge'
 import { Button } from '../../../core/components/ui/Button'
 import { aiApi } from '../services/api'
 import type { Agent } from '../types'
+import { PageHeader } from '../../../core/components/layout/PageHeader'
 
 const agentIcons: Record<string, string> = {
   'comercial': '💼',
@@ -30,12 +31,7 @@ export default function Agents() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-ink dark:text-slate-100">Agentes</h1>
-          <p className="text-sm text-muted mt-1">Gerencie seus assistentes de IA especializados</p>
-        </div>
-      </div>
+      <PageHeader title="Agentes" description="Crie e gerencie agentes especializados." />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {agents.map((agent) => (

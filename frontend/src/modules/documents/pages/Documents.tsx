@@ -7,6 +7,7 @@ import { EmptyState } from '../../../core/components/ui/EmptyState'
 import { formatDate } from '../../../core/utils/format'
 import { documentsApi } from '../services/api'
 import type { Document } from '../types'
+import { PageHeader } from '../../../core/components/layout/PageHeader'
 
 const typeIcons: Record<string, string> = { pdf: '📄', docx: '📝', xlsx: '📊', csv: '📋', txt: '📃' }
 
@@ -48,19 +49,19 @@ export default function Documents() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-ink dark:text-slate-100">Documentos</h1>
-          <p className="text-sm text-muted mt-1">Upload, análise e consulta de documentos</p>
-        </div>
-        <label className="cursor-pointer">
-          <Button loading={uploading}>
-            <Upload size={16} />
-            {uploading ? 'Enviando...' : 'Upload'}
-          </Button>
-          <input type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" onChange={upload} className="hidden" />
-        </label>
-      </div>
+      <PageHeader
+        title="Documentos"
+        description="Gerencie documentos, contratos e arquivos."
+        actions={
+          <label className="cursor-pointer">
+            <Button loading={uploading}>
+              <Upload size={16} />
+              {uploading ? 'Enviando...' : 'Upload'}
+            </Button>
+            <input type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" onChange={upload} className="hidden" />
+          </label>
+        }
+      />
 
       {loading ? (
         <div className="space-y-3">

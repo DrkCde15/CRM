@@ -9,6 +9,55 @@ from core.deps import get_current_user
 from models.models import Client, Ticket, User
 from schemas.schemas import Paginated, TicketCreate, TicketOut
 from services import email, notifications, realtime, taky
+from services.llm import chat_completion
+from services.webhooks import emit as webhook_emit
+from services.workflows import run_workflows
+
+
+SUMMARY_PROMPT = (
+    "Com base no título e descrição do chamado abaixo, gere um resumo objetivo "
+    "do problema e da solução (máximo 3 frases). "
+    "Se não houver informações suficientes, responda apenas 'Resumo não disponível.'"
+)
+
+
+def _generate_summary(title: str, desc: str) -> str | None:
+    try:
+        import asyncio
+        text = f"Título: {title}\nDescrição: {desc}" if desc else f"Título: {title}"
+        messages = [
+            {"role": "system", "content": SUMMARY_PROMPT},
+            {"role": "user", "content": text},
+        ]
+        result = asyncio.run(chat_completion(messages=messages, tries=1))
+        if result and "Resumo não disponível" not in result:
+            return result
+    except Exception:
+        pass
+    return None
+
+
+def _run_summary(ticket_id: int) -> None:
+    db = next(get_db())
+    try:
+        ticket = db.get(Ticket, ticket_id)
+        if not ticket:
+            return
+        summary = _generate_summary(ticket.titulo, ticket.descricao)
+        if summary:
+            ticket.resumo = summary
+            db.commit()
+    finally:
+        db.close()
+
+
+class BatchStatusUpdate(BaseModel):
+    ids: list[int]
+    status: str
+
+
+class BatchDelete(BaseModel):
+    ids: list[int]
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -94,6 +143,19 @@ def create_ticket(
     )
     realtime.refresh("tickets", current_user.company_id)
     realtime.refresh("stats", current_user.company_id)
+    webhook_emit("ticket.created", current_user.company_id, {
+        "id": ticket.id,
+        "titulo": ticket.titulo,
+        "tipo": ticket.tipo,
+        "status": ticket.status,
+    })
+    run_workflows("ticket.created", {
+        "company_id": current_user.company_id,
+        "ticket_id": ticket.id,
+        "titulo": ticket.titulo,
+        "tipo": ticket.tipo,
+        "status": ticket.status,
+    })
     return ticket
 
 
@@ -101,6 +163,7 @@ def create_ticket(
 def update_status(
     ticket_id: int,
     body: TicketStatusUpdate,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -108,10 +171,34 @@ def update_status(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     ticket.status = body.status
+    if body.status == "fechado" and not ticket.resumo:
+        background.add_task(_run_summary, ticket_id)
     db.commit()
     db.refresh(ticket)
     realtime.refresh("tickets", current_user.company_id)
     realtime.refresh("stats", current_user.company_id)
+    webhook_emit("ticket.updated", current_user.company_id, {
+        "id": ticket.id,
+        "titulo": ticket.titulo,
+        "status": ticket.status,
+    })
+    run_workflows("ticket.updated", {
+        "company_id": current_user.company_id,
+        "ticket_id": ticket.id,
+        "titulo": ticket.titulo,
+        "tipo": ticket.tipo,
+        "status": ticket.status,
+    })
+    if body.status == "fechado":
+        webhook_emit("ticket.closed", current_user.company_id, {
+            "id": ticket.id,
+            "titulo": ticket.titulo,
+        })
+        run_workflows("ticket.closed", {
+            "company_id": current_user.company_id,
+            "ticket_id": ticket.id,
+            "titulo": ticket.titulo,
+        })
     return ticket
 
 
@@ -129,3 +216,41 @@ def push_ticket(
         return {"ok": True, "already_pushed": True}
     background.add_task(_push_to_taky, ticket_id)
     return {"ok": True, "queued": True}
+
+
+@router.post("/batch/status")
+def batch_update_status(
+    body: BatchStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tickets = (
+        db.query(Ticket)
+        .filter(Ticket.id.in_(body.ids), Ticket.company_id == current_user.company_id)
+        .all()
+    )
+    for t in tickets:
+        t.status = body.status
+    db.commit()
+    realtime.refresh("tickets", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
+    return {"ok": True, "updated": len(tickets)}
+
+
+@router.post("/batch/delete")
+def batch_delete_tickets(
+    body: BatchDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tickets = (
+        db.query(Ticket)
+        .filter(Ticket.id.in_(body.ids), Ticket.company_id == current_user.company_id)
+        .all()
+    )
+    for t in tickets:
+        db.delete(t)
+    db.commit()
+    realtime.refresh("tickets", current_user.company_id)
+    realtime.refresh("stats", current_user.company_id)
+    return {"ok": True, "deleted": len(tickets)}

@@ -3,6 +3,7 @@ import { stats as statsApi, ApiError } from '../api'
 import type { Stats } from '../types'
 import { useToasts } from '../store'
 import { registerRealtime } from '../realtime'
+import { PageHeader } from '../core/components/layout/PageHeader'
 
 const cards = [
   { key: 'total_clients', label: 'Clientes', color: 'bg-violet-500' },
@@ -32,6 +33,18 @@ function Bar({ label, value, color }: { label: string; value: number; color: str
   )
 }
 
+const channelColors: Record<string, string> = {
+  chamado: 'bg-amber-500',
+  whatsapp: 'bg-emerald-500',
+  email: 'bg-blue-500',
+}
+
+const channelIcons: Record<string, string> = {
+  chamado: '🎫',
+  whatsapp: '💬',
+  email: '✉️',
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<Stats | null>(null)
   const { push } = useToasts()
@@ -49,7 +62,7 @@ export default function Dashboard() {
   if (!data) {
     return (
       <div className="max-w-5xl mx-auto p-6">
-        <h1 className="text-lg font-semibold text-ink mb-4">Dashboard</h1>
+        <PageHeader title="Dashboard" description="Visualize indicadores, métricas e desempenho da empresa." />
         <p className="text-sm text-muted">Carregando...</p>
       </div>
     )
@@ -57,7 +70,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-lg font-semibold text-ink mb-6">Dashboard</h1>
+      <PageHeader title="Dashboard" description="Visualize indicadores, métricas e desempenho da empresa." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {cards.map((c) => (
@@ -68,17 +81,17 @@ export default function Dashboard() {
             <div
               className={`w-10 h-10 rounded-xl ${c.color} grid place-items-center text-white text-lg font-bold`}
             >
-              {data[c.key]}
+              {data[c.key as keyof typeof data] as number}
             </div>
             <div>
-              <div className="text-xl font-bold text-ink">{data[c.key]}</div>
+              <div className="text-xl font-bold text-ink">{data[c.key as keyof typeof data] as number}</div>
               <div className="text-xs text-muted">{c.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4 mb-8">
+      <div className="grid sm:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
           <div className="text-sm text-muted mb-1">Conversas hoje</div>
           <div className="text-2xl font-bold text-ink">{data.conversations_today}</div>
@@ -86,6 +99,54 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
           <div className="text-sm text-muted mb-1">Chamados hoje</div>
           <div className="text-2xl font-bold text-ink">{data.tickets_today}</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+          <div className="text-sm text-muted mb-1">Resolvidos hoje</div>
+          <div className="text-2xl font-bold text-ink">{data.tickets_resolved_today}</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+          <div className="text-sm text-muted mb-1">CSAT (satisfação)</div>
+          <div className="text-2xl font-bold text-ink">
+            {data.csat_score != null ? `${data.csat_score.toFixed(1)} ⭐` : '—'}
+          </div>
+          <div className="text-[10px] text-muted">Sem avaliações ainda</div>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4 mb-8">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+          <div className="text-sm text-muted mb-1">Tempo médio de resolução</div>
+          <div className="text-2xl font-bold text-ink">
+            {data.avg_resolution_hours != null
+              ? data.avg_resolution_hours < 24
+                ? `${data.avg_resolution_hours}h`
+                : `${(data.avg_resolution_hours / 24).toFixed(1)}d`
+              : '—'}
+          </div>
+          <div className="text-[10px] text-muted">
+            {data.avg_resolution_hours != null ? 'Média entre criação e resolução' : 'Nenhum chamado resolvido'}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+          <h2 className="text-sm font-semibold text-ink mb-1">Chamados por canal</h2>
+          <p className="text-xs text-muted mb-3">Distribuição por tipo de canal.</p>
+          {(() => {
+            const entries = Object.entries(data.tickets_per_channel)
+            const max = Math.max(1, ...entries.map(([, c]) => c))
+            return (
+              <div className="space-y-2">
+                {entries.map(([canal, count]) => (
+                  <Bar
+                    key={canal}
+                    label={`${channelIcons[canal] || '📋'} ${canal} · ${count}`}
+                    value={Math.round((count / max) * 100)}
+                    color={channelColors[canal] || 'bg-slate-400'}
+                  />
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
 

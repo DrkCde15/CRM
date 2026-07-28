@@ -23,6 +23,11 @@ class Company(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), default="Empresa")
+    sso_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sso_client_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sso_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sso_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sso_metadata_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
@@ -96,12 +101,15 @@ class Appointment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    client_id: Mapped[int | None] = mapped_column(ForeignKey("clients.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     servico: Mapped[str] = mapped_column(String(255), default="")
     data_hora: Mapped[datetime] = mapped_column(DateTime)
     observacao: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(50), default="pendente")
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     client: Mapped["Client"] = relationship(back_populates="appointments")
@@ -120,9 +128,81 @@ class Ticket(Base):
     tipo: Mapped[str] = mapped_column(String(50), default="chamado")
     status: Mapped[str] = mapped_column(String(50), default="aberto")
     taky_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resumo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sla_breached: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     client: Mapped["Client"] = relationship(back_populates="tickets")
+
+
+class Webhook(Base):
+    __tablename__ = "webhooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    url: Mapped[str] = mapped_column(String(500))
+    events: Mapped[str] = mapped_column(Text, default="")  # comma-separated list
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class CalendarConnection(Base):
+    __tablename__ = "calendar_connections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    provider: Mapped[str] = mapped_column(String(50))  # google ou outlook
+    email: Mapped[str] = mapped_column(String(255))
+    access_token: Mapped[str] = mapped_column(Text)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    calendar_id: Mapped[str] = mapped_column(String(255), default="primary")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class ScheduledJob(Base):
+    __tablename__ = "scheduled_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    task_type: Mapped[str] = mapped_column(String(100))  # sla_check, appointment_reminder, cleanup, webhook_retry
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class Workflow(Base):
+    __tablename__ = "workflows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    event: Mapped[str] = mapped_column(String(100))  # e.g. ticket.created, message.received
+    conditions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    actions: Mapped[dict] = mapped_column(JSON)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class SLARule(Base):
+    __tablename__ = "sla_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    priority: Mapped[str] = mapped_column(String(50), default="media")  # baixa, media, alta
+    max_response_hours: Mapped[float] = mapped_column(default=24.0)
+    max_resolution_hours: Mapped[float] = mapped_column(default=72.0)
+    escalate_after_hours: Mapped[float] = mapped_column(default=0)  # 0 = disabled
+    escalate_action: Mapped[str] = mapped_column(String(50), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class Config(Base):
@@ -211,6 +291,24 @@ class EmailMessage(Base):
     )
 
     conversation: Mapped["EmailConversation"] = relationship(back_populates="messages")
+
+
+class MCPServer(Base):
+    __tablename__ = "mcp_servers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    server_url: Mapped[str] = mapped_column(String(500), default="")
+    image: Mapped[str] = mapped_column(String(255), default="")
+    container_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    container_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    port: Mapped[int] = mapped_column(Integer, default=0)
+    env_vars: Mapped[dict] = mapped_column(JSON, default=dict)
+    type: Mapped[str] = mapped_column(String(50), default="custom")
+    status: Mapped[str] = mapped_column(String(50), default="stopped")  # running, stopped, error
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class CannedResponse(Base):

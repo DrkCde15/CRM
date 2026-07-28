@@ -5,6 +5,7 @@ import { Button } from '../../../core/components/ui/Button'
 import { formatDate } from '../../../core/utils/format'
 import { aiApi } from '../services/api'
 import type { ChatConversation, ChatMessage } from '../types'
+import { PageHeader } from '../../../core/components/layout/PageHeader'
 
 export default function AIChat() {
   const [conversations, setConversations] = useState<ChatConversation[]>([])
@@ -94,7 +95,11 @@ export default function AIChat() {
   ]
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-screen">
+      <div className="px-6 pt-6 pb-0 shrink-0">
+        <PageHeader title="Mochi AI" description="Converse com a inteligência artificial da plataforma." />
+      </div>
+      <div className="flex-1 flex">
       <aside className="w-72 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
         <div className="p-3 border-b border-slate-100 dark:border-slate-700">
           <Button onClick={newChat} className="w-full">
@@ -233,6 +238,7 @@ export default function AIChat() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   )
 }

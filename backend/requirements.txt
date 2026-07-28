@@ -1,4 +1,4 @@
-fastapi
+fastapi>=0.111,<0.112
 uvicorn[standard]
 sqlalchemy
 pydantic-settings
@@ -17,3 +17,7 @@ black
 PyPDF2
 python-docx
 openpyxl
+starlette>=0.37,<0.39
+sse-starlette>=1.6.1,<2
+schedule
+docker

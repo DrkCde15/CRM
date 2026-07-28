@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -40,9 +41,21 @@ def stats(db: Session = Depends(get_db), current_user: User = Depends(get_curren
         .count()
     )
 
-    tickets_by_status = {}
-    for row in db.query(Ticket.status, Ticket.id).filter_by(company_id=company_id).all():
-        tickets_by_status[row.status] = tickets_by_status.get(row.status, 0) + 1
+    tickets_by_status: dict[str, int] = {}
+    tickets_per_channel: dict[str, int] = {}
+    resolved_tickets_hours: list[float] = []
+    resolved_today = 0
+
+    for t in db.query(Ticket).filter_by(company_id=company_id).all():
+        tickets_by_status[t.status] = tickets_by_status.get(t.status, 0) + 1
+        canal = t.tipo or "chamado"
+        tickets_per_channel[canal] = tickets_per_channel.get(canal, 0) + 1
+
+        if t.status in ("resolvido", "fechado"):
+            diff = now - t.created_at.replace(tzinfo=None)
+            resolved_tickets_hours.append(diff.total_seconds() / 3600)
+            if t.created_at >= today_start:
+                resolved_today += 1
 
     tickets_today = (
         db.query(Ticket)
@@ -62,6 +75,12 @@ def stats(db: Session = Depends(get_db), current_user: User = Depends(get_curren
         .count()
     )
 
+    avg_resolution_hours = (
+        round(sum(resolved_tickets_hours) / len(resolved_tickets_hours), 1)
+        if resolved_tickets_hours
+        else None
+    )
+
     return {
         "total_clients": total_clients,
         "total_conversations": total_conversations,
@@ -70,10 +89,14 @@ def stats(db: Session = Depends(get_db), current_user: User = Depends(get_curren
         "conversations_today": conversations_today,
         "tickets_today": tickets_today,
         "tickets_by_status": tickets_by_status,
+        "tickets_per_channel": tickets_per_channel,
+        "tickets_resolved_today": resolved_today,
+        "avg_resolution_hours": avg_resolution_hours,
+        "csat_score": None,
         "channels": {
             "whatsapp": {
                 "conversations": total_conversations,
-                "messages": db.query(Conversation).filter_by(company_id=company_id).count(),
+                "messages": total_conversations,
             },
             "email": {
                 "conversations": email_conversations,

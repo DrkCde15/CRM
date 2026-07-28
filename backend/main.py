@@ -10,23 +10,30 @@ from fastapi.responses import FileResponse
 
 from core.config import settings
 from core.database import Base, engine
+from services.scheduler import start as start_scheduler, stop as stop_scheduler
 
 logger = logging.getLogger("mochi")
 from routers import (
     ai,
     appointments,
     auth,
+    calendar,
     canned,
     clients,
+    companies,
     documents,
     email_channel,
     inbox,
     notifications,
     realtime,
     search,
+    sla,
+    sso,
     stats,
     tickets,
     webhook,
+    webhooks,
+    workflows,
 )
 
 @asynccontextmanager
@@ -74,8 +81,12 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning("Diretório do gateway não encontrado: %s", gateway_dir)
 
+    start_scheduler()
+    logger.info("Scheduler de tarefas iniciado")
+
     yield
 
+    stop_scheduler()
     if _gateway_task is not None:
         _gateway_stop.set()
         _gateway_task.cancel()
@@ -140,6 +151,12 @@ app.include_router(realtime.router)
 app.include_router(ai.router)
 app.include_router(documents.router)
 app.include_router(search.router)
+app.include_router(webhooks.router)
+app.include_router(workflows.router)
+app.include_router(calendar.router)
+app.include_router(sla.router)
+app.include_router(sso.router)
+app.include_router(companies.router)
 
 
 @app.get("/health")

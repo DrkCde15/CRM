@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { emailChannel, ApiError } from '../api'
 import type { EmailAccount } from '../types'
 import { useAuth, useToasts } from '../store'
+import { PageHeader } from '../core/components/layout/PageHeader'
 
 export default function Channels() {
   const { user } = useAuth()
@@ -9,15 +10,15 @@ export default function Channels() {
   if (user?.role !== 'admin') {
     return (
       <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-lg font-semibold text-ink mb-2">Canais</h1>
+        <PageHeader title="Canais" description="Gerencie canais de atendimento." />
         <p className="text-sm text-muted">Acesso restrito a administradores.</p>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 grid gap-8">
-      <h1 className="text-lg font-semibold text-ink">Canais de atendimento</h1>
+    <div className="max-w-4xl mx-auto p-6">
+      <PageHeader title="Canais" description="Gerencie canais de atendimento." />
       <EmailSection />
     </div>
   )

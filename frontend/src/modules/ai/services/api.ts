@@ -44,4 +44,8 @@ export const aiApi = {
     const { data } = await api.post('/ai/analyze', { text })
     return data
   },
+  suggest: async (context: string[], channel = 'email') => {
+    const { data } = await api.post('/ai/suggest', { context, channel })
+    return data.suggestions as string[]
+  },
 }

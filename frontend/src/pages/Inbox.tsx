@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { inbox as inboxApi, clients, emailChannel, canned } from '../api'
 import { registerRealtime } from '../realtime'
+import { aiApi } from '../modules/ai/services/api'
+import { useAuth } from '../store'
+import { TEMPLATE_VARS, resolveTemplateVars } from '../utils/templateVars'
+import { PageHeader } from '../core/components/layout/PageHeader'
 import type {
   Conversation,
   CannedResponse,
@@ -49,6 +53,37 @@ export default function Inbox() {
   const [quick, setQuick] = useState<CannedResponse[]>([])
   const [macros, setMacros] = useState<CannedResponse[]>([])
   const [showMgr, setShowMgr] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const user = useAuth((s) => s.user)
+
+  const loadSuggestions = useCallback(async () => {
+    if (!detail) { setSuggestions([]); return }
+    const context: string[] = []
+    if (detail.kind === 'email') {
+      context.push(...detail.conv.messages.slice(-6).map((m) =>
+        `${m.direction === 'outbound' ? 'Agente' : 'Cliente'}: ${m.body_text || m.body_html.replace(/<[^>]+>/g, '')}`
+      ))
+    } else if (detail.kind === 'whatsapp') {
+      context.push(...detail.items.slice(-6).map((c) =>
+        `${c.response ? 'Agente' : 'Cliente'}: ${c.response || c.message}`
+      ))
+    }
+    if (!context.length) return
+    setSuggestLoading(true)
+    try {
+      const result = await aiApi.suggest(context, detail.kind)
+      setSuggestions(result)
+    } catch {
+      setSuggestions([])
+    } finally {
+      setSuggestLoading(false)
+    }
+  }, [detail])
+
+  useEffect(() => {
+    setSuggestions([])
+  }, [detail])
 
   const loadCanned = async () => {
     setQuick(await canned.list('quick_reply'))
@@ -120,7 +155,11 @@ export default function Inbox() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto h-[calc(100vh-4rem)] grid grid-cols-[340px_1fr]">
+    <div className="max-w-6xl mx-auto h-screen flex flex-col">
+      <div className="px-6 pt-6 pb-0 shrink-0">
+        <PageHeader title="Conversas" description="Centralize todos os atendimentos em um único lugar." />
+      </div>
+      <div className="flex-1 grid grid-cols-[340px_1fr] overflow-hidden">
       <aside className="border-r border-slate-200 bg-white overflow-y-auto flex flex-col dark:bg-slate-800 dark:border-slate-700">
         <div className="p-3 flex gap-1 flex-wrap border-b border-slate-100 dark:border-slate-700">
           {CHANNELS.map((c) => (
@@ -249,7 +288,7 @@ export default function Inbox() {
                 <Bubble key={m.id} who={m.response ? 'agent' : 'client'} text={m.response || m.message} ts={m.created_at} />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={selected.subject} userName={user?.nome || user?.email} />
           </>
         ) : detail.kind === 'email' ? (
           <>
@@ -265,10 +304,11 @@ export default function Inbox() {
                 />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={detail.conv.subject} userName={user?.nome || user?.email} />
           </>
         ) : null}
-      </section>
+        </section>
+      </div>
 
       {showMgr && (
         <CannedManager
@@ -329,20 +369,46 @@ function ReplyBox({
   onSend,
   quick,
   macros,
+  suggestions,
+  onSuggest,
+  suggestLoading,
+  clientName,
+  userName,
 }: {
   value: string
   onChange: (v: string) => void
   onSend: () => void
   quick: CannedResponse[]
   macros: CannedResponse[]
+  suggestions: string[]
+  onSuggest: () => void
+  suggestLoading: boolean
+  clientName?: string | null
+  userName?: string | null
 }) {
   const [open, setOpen] = useState(false)
+  const [showVars, setShowVars] = useState(false)
   const insert = (text: string) => {
-    onChange(value ? `${value}\n${text}` : text)
+    const resolved = resolveTemplateVars(text, { clientName, userName })
+    onChange(value ? `${value}\n${resolved}` : resolved)
     setOpen(false)
   }
   return (
-    <div className="p-4 bg-white border-t border-slate-200 flex gap-2 relative dark:bg-slate-800 dark:border-slate-700">
+    <div className="p-4 bg-white border-t border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2 px-1">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => insert(s)}
+              className="px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 text-xs font-medium hover:bg-brand-100 dark:bg-brand-700/20 dark:text-brand-300 dark:hover:bg-brand-700/30 transition"
+            >
+              {s.length > 60 ? s.slice(0, 60) + '…' : s}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 relative">
       {open && (
         <div className="absolute bottom-16 left-4 right-4 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-700 dark:border-slate-600">
           {quick.length > 0 && (
@@ -390,15 +456,51 @@ function ReplyBox({
         placeholder="Responder..."
         className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
       />
+      <div className="relative">
+        <button
+          onClick={() => setShowVars((o) => !o)}
+          title="Inserir variável"
+          className="px-2 py-2.5 rounded-xl border border-slate-200 text-sm text-muted hover:text-ink hover:border-slate-300 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300"
+        >
+          {'{}'}
+        </button>
+        {showVars && (
+          <div className="absolute bottom-14 right-0 w-56 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-700 dark:border-slate-600 z-10">
+            <div className="px-3 pt-2 pb-1 text-[11px] uppercase text-muted">Variáveis</div>
+            {TEMPLATE_VARS.map((v) => (
+              <button
+                key={v.token}
+                onClick={() => {
+                  onChange(value ? `${value} ${v.token}` : v.token)
+                  setShowVars(false)
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-surface text-sm dark:hover:bg-slate-600"
+              >
+                <div className="font-medium text-xs text-ink dark:text-slate-100">{v.token}</div>
+                <div className="text-[10px] text-muted">{v.label}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <button
         onClick={onSend}
         className="px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700"
       >
         Enviar
       </button>
+      <button
+        onClick={onSuggest}
+        disabled={suggestLoading}
+        title="Sugerir resposta com IA"
+          className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 disabled:opacity-50"
+        >
+          {suggestLoading ? '…' : '✨'}
+        </button>
+      </div>
     </div>
-  )
-}
+    )
+  }
 
 function CannedManager({
   onClose,
@@ -522,6 +624,18 @@ function CannedManager({
               placeholder="Conteúdo da mensagem"
               className="w-full px-3 py-2 mb-2 rounded-lg border border-slate-200 text-sm h-28 dark:bg-slate-700 dark:border-slate-600"
             />
+            <div className="flex flex-wrap gap-1 mb-2">
+              {TEMPLATE_VARS.map((v) => (
+                <button
+                  key={v.token}
+                  onClick={() => setContent((c) => `${c || ''} ${v.token}`.trimStart())}
+                  className="px-2 py-0.5 rounded bg-slate-100 text-[10px] text-muted hover:bg-slate-200 dark:bg-slate-600 dark:text-slate-300"
+                  title={v.label}
+                >
+                  {v.token}
+                </button>
+              ))}
+            </div>
             {err && <div className="text-xs text-red-600 mb-2">{err}</div>}
             <div className="flex gap-2">
               <button

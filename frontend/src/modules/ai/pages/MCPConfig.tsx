@@ -7,6 +7,7 @@ import { Modal } from '../../../core/components/ui/Modal'
 import { Input } from '../../../core/components/ui/Input'
 import { aiApi } from '../services/api'
 import type { MCPClient } from '../types'
+import { PageHeader } from '../../../core/components/layout/PageHeader'
 
 const mcpIcons: Record<string, string> = {
   github: '🐙', gitlab: '🦊', postgresql: '🐘', mysql: '🐬',
@@ -37,16 +38,16 @@ export default function MCPConfig() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-ink dark:text-slate-100">Servidores MCP</h1>
-          <p className="text-sm text-muted mt-1">Gerencie servidores de contexto e APIs externas</p>
-        </div>
-        <Button onClick={() => setShowNew(true)}>
-          <Plus size={16} />
-          Novo servidor
-        </Button>
-      </div>
+      <PageHeader
+        title="Servidores MCP"
+        description="Gerencie servidores de contexto e APIs externas."
+        actions={
+          <Button onClick={() => setShowNew(true)}>
+            <Plus size={16} />
+            Novo servidor
+          </Button>
+        }
+      />
 
       <div className="grid gap-3">
         {clients.map((client) => (

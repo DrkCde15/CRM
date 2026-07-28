@@ -9,7 +9,7 @@ from core.deps import get_current_user
 from core.config import settings
 from services.llm import chat_completion
 from services.agent_manager import agent_manager
-from services.mcp_manager import mcp_manager
+from services import mcp_manager
 
 logger = logging.getLogger("mochi.ai")
 router = APIRouter(prefix="/api/ai", tags=["AI"])
@@ -45,6 +45,11 @@ class MCPUpdate(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     text: str
+
+
+class SuggestRequest(BaseModel):
+    context: list[str] = []
+    channel: str = "email"
 
 
 _conversations: dict[str, list[dict]] = {}
@@ -149,6 +154,25 @@ async def update_mcp(client_id: str, body: MCPUpdate, user=Depends(get_current_u
     result = mcp_manager.update_client(client_id, updates)
     if result is None:
         return {"error": "Cliente nao encontrado"}, 404
+    result = mcp_manager.update_client(client_id, updates)
+    if result is None:
+        return {"error": "Cliente nao encontrado"}, 404
+    return result
+
+
+@router.delete("/mcp/{client_id}")
+async def delete_mcp(client_id: str, user=Depends(get_current_user)):
+    ok = mcp_manager.delete_client(client_id)
+    if not ok:
+        return {"error": "Cliente nao encontrado"}, 404
+    return {"ok": True}
+
+
+@router.post("/mcp/{client_id}/restart")
+async def restart_mcp(client_id: str, user=Depends(get_current_user)):
+    result = mcp_manager.restart_client(client_id)
+    if result is None:
+        return {"error": "Cliente nao encontrado"}, 404
     return result
 
 
@@ -157,6 +181,40 @@ async def analyze_text(body: AnalyzeRequest, user=Depends(get_current_user)):
     from services.document_processor import document_processor
     analysis = await document_processor.analyze_document(body.text)
     return analysis
+
+
+SUGGEST_PROMPT = (
+    "Você é um assistente de atendimento. Com base no histórico da conversa abaixo, "
+    "gere 3 sugestões de resposta curtas e diretas para o agente. "
+    "Retorne APENAS um array JSON com 3 strings, exatamente neste formato: "
+    '["sugestão 1", "sugestão 2", "sugestão 3"]. '
+    "Nenhum texto adicional fora do array. As sugestões devem ser em português."
+)
+
+
+@router.post("/suggest")
+async def suggest_reply(body: SuggestRequest, user=Depends(get_current_user)):
+    context_text = "\n".join(body.context[-6:]) if body.context else "(nova conversa)"
+    messages = [
+        {"role": "system", "content": SUGGEST_PROMPT},
+        {"role": "user", "content": f"Histórico da conversa:\n{context_text}"},
+    ]
+    try:
+        raw = await chat_completion(messages=messages, tries=1)
+        import json
+        suggestions = json.loads(raw)
+        if not isinstance(suggestions, list) or not all(isinstance(s, str) for s in suggestions):
+            suggestions = []
+    except Exception:
+        suggestions = []
+    return {"suggestions": suggestions[:3]}
+
+
+@router.post("/classify")
+async def classify_message(body: AnalyzeRequest, user=Depends(get_current_user)):
+    from services.llm import classify_message
+    result = await classify_message(body.text)
+    return result
 
 
 @router.get("/insights")

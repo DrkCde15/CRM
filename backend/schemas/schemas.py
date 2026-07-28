@@ -109,6 +109,7 @@ class TicketOut(BaseModel):
     tipo: str
     status: str
     taky_task_id: int | None
+    resumo: str | None = None
     created_at: datetime
 
 

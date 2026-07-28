@@ -1,6 +1,6 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Layout from './components/Layout'
+import { AppShell } from './core/components/layout/AppShell'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -12,9 +12,14 @@ import Appointments from './pages/Appointments'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Channels from './pages/Channels'
+import Workflows from './pages/Workflows'
+import CalendarSettings from './pages/CalendarSettings'
+import SLAPage from './pages/SLA'
+import Companies from './pages/Companies'
+import Webhooks from './pages/Webhooks'
+import Automations from './pages/Automations'
 import { useAuth } from './store'
 import { ensureConnected } from './realtime'
-import { AppShell } from './core/components/layout/AppShell'
 import { PageSpinner } from './core/components/ui/Spinner'
 
 const AIChat = lazy(() => import('./modules/ai/pages/AIChat'))
@@ -25,13 +30,7 @@ const Documents = lazy(() => import('./modules/documents/pages/Documents'))
 function Protected({ children }: { children: React.ReactNode }) {
   const token = useAuth((s) => s.token)
   if (!token) return <Navigate to="/login" replace />
-  return <Layout>{children}</Layout>
-}
-
-function ModuleShell({ title, children }: { title?: string; children: React.ReactNode }) {
-  const token = useAuth((s) => s.token)
-  if (!token) return <Navigate to="/login" replace />
-  return <AppShell title={title}>{children}</AppShell>
+  return <AppShell>{children}</AppShell>
 }
 
 function LazyPage({ component: Component }: { component: React.LazyExoticComponent<React.ComponentType> }) {
@@ -113,40 +112,87 @@ export default function App() {
         }
       />
 
-      {/* New Module Routes */}
       <Route
         path="/ai"
         element={
-          <ModuleShell title="Mochi AI">
+          <Protected>
             <LazyPage component={AIChat} />
-          </ModuleShell>
+          </Protected>
         }
       />
       <Route
         path="/ai/agents"
         element={
-          <ModuleShell title="Agentes">
+          <Protected>
             <LazyPage component={Agents} />
-          </ModuleShell>
+          </Protected>
         }
       />
       <Route
         path="/ai/mcp"
         element={
-          <ModuleShell title="Servidores MCP">
+          <Protected>
             <LazyPage component={MCPConfig} />
-          </ModuleShell>
+          </Protected>
         }
       />
       <Route
         path="/documents"
         element={
-          <ModuleShell title="Documentos">
+          <Protected>
             <LazyPage component={Documents} />
-          </ModuleShell>
+          </Protected>
         }
       />
 
+      <Route
+        path="/workflows"
+        element={
+          <Protected>
+            <Workflows />
+          </Protected>
+        }
+      />
+      <Route
+        path="/calendar"
+        element={
+          <Protected>
+            <CalendarSettings />
+          </Protected>
+        }
+      />
+      <Route
+        path="/sla"
+        element={
+          <Protected>
+            <SLAPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/companies"
+        element={
+          <Protected>
+            <Companies />
+          </Protected>
+        }
+      />
+      <Route
+        path="/webhooks"
+        element={
+          <Protected>
+            <Webhooks />
+          </Protected>
+        }
+      />
+      <Route
+        path="/automations"
+        element={
+          <Protected>
+            <Automations />
+          </Protected>
+        }
+      />
       <Route path="*" element={<Navigate to="/inbox" replace />} />
     </Routes>
   )

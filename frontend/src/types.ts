@@ -32,6 +32,7 @@ export interface Ticket {
   tipo: string
   status: string
   taky_task_id: number | null
+  resumo?: string | null
   created_at: string
 }
 
@@ -54,10 +55,13 @@ export interface Stats {
   conversations_today: number
   tickets_today: number
   tickets_by_status: Record<string, number>
+  tickets_per_channel: Record<string, number>
+  tickets_resolved_today: number
+  avg_resolution_hours: number | null
+  csat_score: number | null
   channels: {
     whatsapp: { conversations: number; messages: number }
     email: { conversations: number; messages: number }
-    website: { conversations: number; messages: number; open: number; closed: number }
   }
   tickets_converted: number
 }

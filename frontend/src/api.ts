@@ -64,20 +64,28 @@ export const clients = {
     (await api.get<Paginated<Client>>('/clients', { params: { skip, limit } })).data,
   search: async (search: string, skip = 0, limit = 50) =>
     (await api.get<Paginated<Client>>('/clients', { params: { skip, limit, search } })).data,
-  export: async (search = '') => {
+  export: async (search = '', format = 'csv') => {
+    const ext = format === 'xlsx' ? 'xlsx' : format
     const { data } = await api.get<Blob>('/clients/export', {
-      params: { search },
+      params: { search, formato: format },
       responseType: 'blob',
     })
     const url = URL.createObjectURL(data)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'clientes.csv'
+    a.download = `clientes.${ext}`
     document.body.appendChild(a)
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
   },
+  import: async (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return (await api.post('/clients/import', fd)).data
+  },
+  batchDelete: async (ids: number[]) =>
+    (await api.post('/clients/batch/delete', { ids })).data,
   conversations: async (id: number) =>
     (await api.get<Conversation[]>(`/clients/${id}/conversations`)).data,
 }
@@ -86,6 +94,10 @@ export const tickets = {
   list: async (skip = 0, limit = 50) =>
     (await api.get<Paginated<Ticket>>('/tickets', { params: { skip, limit } })).data,
   push: async (id: number) => (await api.post(`/tickets/${id}/push`)).data,
+  batchStatus: async (ids: number[], status: string) =>
+    (await api.post('/tickets/batch/status', { ids, status })).data,
+  batchDelete: async (ids: number[]) =>
+    (await api.post('/tickets/batch/delete', { ids })).data,
 }
 
 export const appointments = {
@@ -169,6 +181,54 @@ export const canned = {
     ).data,
   remove: async (kind: 'quick_reply' | 'macro', id: number) =>
     (await api.delete(`${kind === 'quick_reply' ? '/quick-replies' : '/macros'}/${id}`)).data,
+}
+
+export const calendarApi = {
+  listJobs: async () => (await api.get('/calendar/jobs')).data,
+  createJob: async (body: { name: string; task_type: string; interval_minutes: number; config?: any }) =>
+    (await api.post('/calendar/jobs', body)).data,
+  updateJob: async (id: number, body: any) =>
+    (await api.put(`/calendar/jobs/${id}`, body)).data,
+  deleteJob: async (id: number) =>
+    (await api.delete(`/calendar/jobs/${id}`)).data,
+  runNow: async (id: number) =>
+    (await api.post(`/calendar/jobs/${id}/run-now`)).data,
+}
+
+export const companiesApi = {
+  list: async () => (await api.get('/companies')).data,
+  get: async (id: number) => (await api.get(`/companies/${id}`)).data,
+  stats: async (id: number) => (await api.get(`/companies/${id}/stats`)).data,
+  update: async (id: number, body: any) => (await api.put(`/companies/${id}`, body)).data,
+}
+
+export const slaApi = {
+  listRules: async () => (await api.get('/sla/rules')).data,
+  createRule: async (body: any) => (await api.post('/sla/rules', body)).data,
+  updateRule: async (id: number, body: any) => (await api.put(`/sla/rules/${id}`, body)).data,
+  deleteRule: async (id: number) => (await api.delete(`/sla/rules/${id}`)).data,
+  check: async () => (await api.post('/sla/check')).data,
+  breached: async () => (await api.get('/sla/breached')).data,
+}
+
+export const webhooksApi = {
+  list: async () => (await api.get('/webhooks')).data,
+  create: async (body: { name: string; url: string; events: string }) =>
+    (await api.post('/webhooks', body)).data,
+  update: async (id: number, body: any) =>
+    (await api.put(`/webhooks/${id}`, body)).data,
+  remove: async (id: number) =>
+    (await api.delete(`/webhooks/${id}`)).data,
+}
+
+export const workflowsApi = {
+  list: async () => (await api.get('/workflows')).data,
+  create: async (body: { name: string; event: string; conditions?: any; actions: any }) =>
+    (await api.post('/workflows', body)).data,
+  update: async (id: number, body: any) =>
+    (await api.put(`/workflows/${id}`, body)).data,
+  remove: async (id: number) =>
+    (await api.delete(`/workflows/${id}`)).data,
 }
 
 export default api

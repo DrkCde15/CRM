@@ -83,6 +83,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (user?.role === 'admin') {
     links.push({ to: '/channels', label: 'Canais' })
     links.push({ to: '/users', label: 'Usuários' })
+    links.push({ to: '/workflows', label: 'Workflows' })
+    links.push({ to: '/calendar', label: 'Calendário' })
+    links.push({ to: '/sla', label: 'SLA' })
+    links.push({ to: '/companies', label: 'Empresas' })
   }
 
   return (

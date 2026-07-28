@@ -3,6 +3,7 @@ import { appointments as apptsApi, ApiError } from '../api'
 import type { Appointment } from '../types'
 import { useToasts } from '../store'
 import { registerRealtime } from '../realtime'
+import { PageHeader } from '../core/components/layout/PageHeader'
 
 function fmt(ts: string) {
   return new Date(ts).toLocaleString('pt-BR', {
@@ -31,7 +32,7 @@ export default function Appointments() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-lg font-semibold text-ink mb-4">Agendamentos</h1>
+      <PageHeader title="Agendamentos" description="Organize compromissos, reuniões e visitas." />
       {loading && <p className="text-sm text-muted mb-4">Carregando...</p>}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {!loading && list.length === 0 && <p className="text-sm text-muted">Nenhum agendamento.</p>}

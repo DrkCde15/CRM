@@ -5,6 +5,7 @@ import { ApiError } from '../api'
 import type { User } from '../types'
 import { useAuth } from '../store'
 import { useToasts } from '../store'
+import { PageHeader } from '../core/components/layout/PageHeader'
 
 export default function Users() {
   const { user } = useAuth()
@@ -55,7 +56,7 @@ export default function Users() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-lg font-semibold text-ink mb-4">Usuários</h1>
+      <PageHeader title="Usuários" description="Gerencie usuários e permissões da plataforma." />
 
       <form
         onSubmit={create}

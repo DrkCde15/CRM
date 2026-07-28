@@ -207,6 +207,41 @@ async def _reply_gemini(cfg: dict, messages: list[dict], tries: int) -> str:
     return _FALLBACK
 
 
+CLASSIFY_PROMPT = (
+    "Classifique a mensagem a seguir de um cliente de uma empresa de desenvolvimento de software. "
+    "Responda APENAS com um JSON no formato: "
+    '{"intent": "suporte|orcamento|duvida|cancelamento|outro", "priority": "baixa|media|alta", "summary": "breve resumo (máx 60 caracteres)"}. '
+    "NÃO inclua markdown, explicações ou texto extra."
+)
+
+
+async def classify_message(message_text: str) -> dict:
+    """Classifica uma mensagem usando a LLM configurada.
+
+    Retorna um dicionário com intent, priority e summary.
+    """
+    cfg = _provider_cfg()
+    if not llm_configured():
+        return {"intent": "outro", "priority": "media", "summary": ""}
+
+    messages = [
+        {"role": "system", "content": CLASSIFY_PROMPT},
+        {"role": "user", "content": message_text},
+    ]
+
+    try:
+        text = await chat_completion(messages)
+        # Tenta extrair JSON do texto de resposta
+        import json
+        import re
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return {"intent": "outro", "priority": "media", "summary": ""}
+    except Exception:
+        return {"intent": "outro", "priority": "media", "summary": ""}
+
+
 async def describe_image(image_base64: str, prompt: str = "Descreva esta imagem.") -> str:
     cfg = _provider_cfg()
     if cfg["kind"] != "openai" or not cfg["vision_model"]:
