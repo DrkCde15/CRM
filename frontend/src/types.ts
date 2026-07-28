@@ -125,24 +125,6 @@ export interface WebsiteConversation {
   messages: WebsiteMessage[]
 }
 
-export interface WidgetConfig {
-  id: number
-  company_id: number
-  name: string
-  logo_url: string
-  primary_color: string
-  welcome_message: string
-  agent_avatar_url: string
-  business_hours: Record<string, unknown>
-  position: string
-  language: string
-  icon_url: string
-  theme: string
-  api_token: string
-  created_at: string
-  updated_at: string
-}
-
 export interface InboxItem {
   channel: 'whatsapp' | 'email' | 'website'
   conversation_id: number

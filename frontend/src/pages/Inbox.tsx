@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react'
-import { inbox as inboxApi, clients, emailChannel, websiteChat, canned } from '../api'
+import { inbox as inboxApi, clients, emailChannel, canned } from '../api'
 import { registerRealtime } from '../realtime'
 import type {
   Conversation,
   CannedResponse,
   EmailConversation,
   InboxItem,
-  WebsiteMessage,
 } from '../types'
 
 const CHANNELS: { key: string; label: string; icon: string }[] = [
   { key: '', label: 'Todos', icon: '📥' },
   { key: 'whatsapp', label: 'WhatsApp', icon: '💬' },
   { key: 'email', label: 'E-mail', icon: '✉️' },
-  { key: 'website', label: 'Website', icon: '🌐' },
 ]
 
 const tipoLabel: Record<string, string> = { empresa: 'Empresa', pessoa: 'Pessoa' }
@@ -26,7 +24,6 @@ function tipoTxt(v?: string | null) {
 type Detail =
   | { kind: 'whatsapp'; items: Conversation[] }
   | { kind: 'email'; conv: EmailConversation }
-  | { kind: 'website'; items: WebsiteMessage[] }
   | null
 
 function fmt(ts: string | null) {
@@ -81,8 +78,6 @@ export default function Inbox() {
       setDetail({ kind: 'whatsapp', items: await clients.conversations(item.client_id) })
     } else if (item.channel === 'email') {
       setDetail({ kind: 'email', conv: await emailChannel.conversation(item.conversation_id) })
-    } else if (item.channel === 'website') {
-      setDetail({ kind: 'website', items: await websiteChat.history(item.conversation_id) })
     }
   }
 
@@ -121,9 +116,6 @@ export default function Inbox() {
         in_reply_to: last.message_id,
       })
       setDetail({ kind: 'email', conv: await emailChannel.conversation(detail.conv.id) })
-    } else if (detail.kind === 'website') {
-      await websiteChat.send(selected.conversation_id, text)
-      setDetail({ kind: 'website', items: await websiteChat.history(selected.conversation_id) })
     }
   }
 
@@ -275,22 +267,7 @@ export default function Inbox() {
             </Thread>
             <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
           </>
-        ) : (
-          <>
-            <Header title={`Chat #${detail.items.length ? selected.conversation_id : ''}`} sub={`${detail.items.length} mensagens`} />
-            <Thread>
-              {detail.items.map((m) => (
-                <Bubble
-                  key={m.id}
-                  who={m.sender === 'agent' ? 'agent' : 'client'}
-                  text={m.message}
-                  ts={m.created_at}
-                />
-              ))}
-            </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} />
-          </>
-        )}
+        ) : null}
       </section>
 
       {showMgr && (

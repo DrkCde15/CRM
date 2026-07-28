@@ -87,6 +87,20 @@ _FALLBACK = "🤖 (não consegui responder agora) — digite 0 para o menu."
 _UNAVAILABLE = "🤖 (IA indisponível no momento) — digite 0 para o menu."
 
 
+async def chat_completion(messages: list[dict], tries: int | None = None) -> str:
+    cfg = _provider_cfg()
+    if not llm_configured():
+        return _UNAVAILABLE
+
+    _tries = tries or max(1, settings.groq_max_retries)
+
+    if cfg["kind"] == "anthropic":
+        return await _reply_anthropic(cfg, messages, _tries)
+    if cfg["kind"] == "gemini":
+        return await _reply_gemini(cfg, messages, _tries)
+    return await _reply_openai(cfg, messages, _tries)
+
+
 async def generate_reply(user_message: str, history: list[ChatMessage] | None = None) -> str:
     cfg = _provider_cfg()
     if not llm_configured():

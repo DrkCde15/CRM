@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from core.config import settings
 from core.database import SessionLocal
-from core.deps import get_current_user, optional_current_user
+from core.deps import get_current_user
 from core.security import create_access_token, hash_password, validate_password, verify_password
 from models.models import Company, PasswordReset, User
 from schemas.schemas import (
@@ -20,7 +20,7 @@ from schemas.schemas import (
 )
 from services import email
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 _RESET_TOKEN_TTL = timedelta(hours=1)
 
@@ -56,12 +56,9 @@ def _list_users(db, company_id):
 
 
 @router.post("/register", response_model=UserOut)
-def register(body: UserCreate, current: User | None = Depends(optional_current_user)):
+def register(body: UserCreate):
     db = SessionLocal()
     try:
-        exists = db.query(User).first() is not None
-        if exists and (current is None or current.role != "admin"):
-            raise HTTPException(status_code=403, detail="Only an admin can register users")
         if _get_user_by_email(db, body.email):
             raise HTTPException(status_code=400, detail="Email already registered")
         if not db.query(Company).filter_by(id=1).first():
@@ -130,7 +127,7 @@ async def _send_reset_email(user_email: str, user_name: str, token: str) -> None
         f"Se você não solicitou, ignore este e-mail."
     )
     await email.send_email(
-        user_email, "Redefinir senha — Convexo", email.render_html("Redefinir senha", body)
+        user_email, "Redefinir senha — Mochi", email.render_html("Redefinir senha", body)
     )
 
 

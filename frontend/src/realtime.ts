@@ -1,4 +1,4 @@
-const base = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 const wsBase = base.replace(/^http/, 'ws')
 
 const handlers = new Map<string, () => void>()

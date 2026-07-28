@@ -13,11 +13,9 @@ from models.models import (
     EmailMessage,
     Ticket,
     User,
-    WebsiteConversation,
-    WebsiteMessage,
 )
 
-router = APIRouter(prefix="/stats", tags=["stats"])
+router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 
 @router.get("")
@@ -58,14 +56,6 @@ def stats(db: Session = Depends(get_db), current_user: User = Depends(get_curren
 
     total_emails = db.query(EmailMessage).filter_by(company_id=company_id).count()
     email_conversations = db.query(EmailConversation).filter_by(company_id=company_id).count()
-    total_chats = db.query(WebsiteMessage).filter_by(company_id=company_id).count()
-    website_conversations = db.query(WebsiteConversation).filter_by(company_id=company_id).count()
-    open_chats = (
-        db.query(WebsiteConversation).filter_by(company_id=company_id, status="open").count()
-    )
-    closed_chats = (
-        db.query(WebsiteConversation).filter_by(company_id=company_id, status="closed").count()
-    )
     tickets_converted = (
         db.query(Ticket)
         .filter(Ticket.company_id == company_id, Ticket.tipo.in_(["email", "chat"]))
@@ -88,12 +78,6 @@ def stats(db: Session = Depends(get_db), current_user: User = Depends(get_curren
             "email": {
                 "conversations": email_conversations,
                 "messages": total_emails,
-            },
-            "website": {
-                "conversations": website_conversations,
-                "messages": total_chats,
-                "open": open_chats,
-                "closed": closed_chats,
             },
         },
         "tickets_converted": tickets_converted,

@@ -97,10 +97,9 @@ export default function Dashboard() {
           const values = {
             WhatsApp: ch.whatsapp.conversations,
             'E-mail': ch.email.conversations,
-            Website: ch.website.conversations,
           }
           const max = Math.max(1, ...Object.values(values))
-          const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-violet-500']
+          const colors = ['bg-emerald-500', 'bg-blue-500']
           return (
             <div className="space-y-3">
               {Object.entries(values).map(([label, value], i) => (
@@ -114,10 +113,6 @@ export default function Dashboard() {
               <div className="flex flex-wrap gap-4 text-[11px] text-muted pt-1">
                 <span>💬 WhatsApp: {ch.whatsapp.messages} mensagens</span>
                 <span>✉️ E-mail: {ch.email.messages} mensagens</span>
-                <span>🌐 Website: {ch.website.messages} mensagens</span>
-                <span>
-                  🌐 Website: {ch.website.open} abertas · {ch.website.closed} fechadas
-                </span>
               </div>
             </div>
           )

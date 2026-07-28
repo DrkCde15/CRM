@@ -5,7 +5,7 @@ from core.security import decode_access_token
 from models.models import User
 from services import realtime
 
-router = APIRouter(tags=["realtime"])
+router = APIRouter(prefix="/api", tags=["realtime"])
 
 
 @router.websocket("/ws")

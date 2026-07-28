@@ -213,76 +213,6 @@ class EmailMessage(Base):
     conversation: Mapped["EmailConversation"] = relationship(back_populates="messages")
 
 
-class WebsiteVisitor(Base):
-    __tablename__ = "website_visitors"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    session_id: Mapped[str] = mapped_column(String(255), index=True)
-    name: Mapped[str] = mapped_column(String(255), default="")
-    email: Mapped[str] = mapped_column(String(255), default="")
-    phone: Mapped[str] = mapped_column(String(50), default="")
-    ip: Mapped[str] = mapped_column(String(64), default="")
-    user_agent: Mapped[str] = mapped_column(Text, default="")
-    country: Mapped[str] = mapped_column(String(120), default="")
-    city: Mapped[str] = mapped_column(String(120), default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
-    )
-    last_seen: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
-    )
-
-    conversations: Mapped[list["WebsiteConversation"]] = relationship(
-        back_populates="visitor"
-    )
-
-
-class WebsiteConversation(Base):
-    __tablename__ = "website_conversations"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    visitor_id: Mapped[int] = mapped_column(
-        ForeignKey("website_visitors.id"), index=True
-    )
-    ticket_id: Mapped[int | None] = mapped_column(
-        ForeignKey("tickets.id"), nullable=True, index=True
-    )
-    assigned_user: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True, index=True
-    )
-    status: Mapped[str] = mapped_column(String(50), default="open")
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
-    )
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-    visitor: Mapped["WebsiteVisitor"] = relationship(back_populates="conversations")
-    messages: Mapped[list["WebsiteMessage"]] = relationship(
-        back_populates="conversation",
-        order_by="WebsiteMessage.created_at.asc()",
-    )
-
-
-class WebsiteMessage(Base):
-    __tablename__ = "website_messages"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    conversation_id: Mapped[int] = mapped_column(
-        ForeignKey("website_conversations.id"), index=True
-    )
-    sender: Mapped[str] = mapped_column(String(50), default="visitor")
-    message: Mapped[str] = mapped_column(Text, default="")
-    attachments: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
-    )
-
-    conversation: Mapped["WebsiteConversation"] = relationship(back_populates="messages")
-
-
 class CannedResponse(Base):
     __tablename__ = "canned_responses"
 
@@ -296,29 +226,3 @@ class CannedResponse(Base):
     )
 
 
-class WidgetConfig(Base):
-    __tablename__ = "widget_configs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    name: Mapped[str] = mapped_column(String(255), default="Convexo")
-    logo_url: Mapped[str] = mapped_column(String(500), default="")
-    primary_color: Mapped[str] = mapped_column(String(20), default="#059669")
-    welcome_message: Mapped[str] = mapped_column(
-        Text, default="Olá! Como podemos ajudar?"
-    )
-    agent_avatar_url: Mapped[str] = mapped_column(String(500), default="")
-    business_hours: Mapped[dict] = mapped_column(JSON, default=dict)
-    position: Mapped[str] = mapped_column(String(20), default="right")
-    language: Mapped[str] = mapped_column(String(20), default="pt-BR")
-    icon_url: Mapped[str] = mapped_column(String(500), default="")
-    theme: Mapped[str] = mapped_column(String(20), default="light")
-    whatsapp_number: Mapped[str] = mapped_column(String(40), default="")
-    contact_email: Mapped[str] = mapped_column(String(255), default="")
-    api_token: Mapped[str] = mapped_column(String(255), default="", index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
-    )

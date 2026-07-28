@@ -8,7 +8,7 @@ from models.models import Appointment, User
 from schemas.schemas import AppointmentCreate, AppointmentOut
 from services import realtime
 
-router = APIRouter(prefix="/appointments", tags=["appointments"])
+router = APIRouter(prefix="/api/appointments", tags=["appointments"])
 
 
 class AppointmentStatusUpdate(BaseModel):

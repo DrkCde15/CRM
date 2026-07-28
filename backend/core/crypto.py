@@ -11,7 +11,7 @@ def _fernet() -> Fernet:
     derived = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=b"convexo-crm",
+        salt=b"mochi-crm",
         info=b"credentials",
     ).derive(settings.secret_key.encode())
     key = urlsafe_b64encode(derived)

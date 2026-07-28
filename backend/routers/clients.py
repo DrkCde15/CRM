@@ -11,7 +11,7 @@ from core.deps import get_current_user
 from models.models import Client, Conversation, User
 from schemas.schemas import ClientOut, ConversationOut, Paginated
 
-router = APIRouter(prefix="/clients", tags=["clients"])
+router = APIRouter(prefix="/api/clients", tags=["clients"])
 
 
 class ClientNameUpdate(BaseModel):

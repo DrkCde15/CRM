@@ -17,7 +17,7 @@ from schemas.schemas import (
 )
 from services import email_channel
 
-router = APIRouter(prefix="/email", tags=["email"])
+router = APIRouter(prefix="/api/email", tags=["email"])
 
 
 def _admin(user: User) -> None:

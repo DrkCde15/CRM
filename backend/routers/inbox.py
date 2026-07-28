@@ -10,11 +10,10 @@ from models.models import (
     EmailAccount,
     EmailConversation,
     User,
-    WebsiteConversation,
 )
 from schemas.schemas import InboxItem
 
-router = APIRouter(prefix="/inbox", tags=["inbox"])
+router = APIRouter(prefix="/api/inbox", tags=["inbox"])
 
 
 def _client_tipo(client) -> str | None:
@@ -64,25 +63,6 @@ def _email_items(db: Session, current_user: User) -> list[InboxItem]:
     return items
 
 
-def _website_items(db: Session, current_user: User) -> list[InboxItem]:
-    items: list[InboxItem] = []
-    for c in db.query(WebsiteConversation).filter_by(company_id=current_user.company_id).all():
-        last = c.messages[-1] if c.messages else None
-        items.append(
-            InboxItem(
-                channel="website",
-                conversation_id=c.id,
-                subject=f"Chat #{c.id}",
-                last_message=(last.message or "")[-120:] if last else "",
-                last_at=last.created_at if last else c.started_at,
-                status=c.status,
-                ticket_id=c.ticket_id,
-                client_id=None,
-            )
-        )
-    return items
-
-
 @router.get("", response_model=list[InboxItem])
 def unified_inbox(
     channel: str | None = Query(None),
@@ -93,7 +73,6 @@ def unified_inbox(
     sources = {
         "whatsapp": lambda: _whatsapp_items(db, current_user, include_archived),
         "email": lambda: _email_items(db, current_user),
-        "website": lambda: _website_items(db, current_user),
     }
     items: list[InboxItem] = []
     for name, fn in sources.items():
@@ -142,7 +121,6 @@ def configured_channels(db: Session = Depends(get_db), current_user: User = Depe
             "enabled": db.query(EmailAccount).filter_by(company_id=current_user.company_id, active=True).count() > 0,
             "accounts": db.query(EmailAccount).filter_by(company_id=current_user.company_id).count(),
         },
-        "website": {"enabled": True, "via": "widget"},
     }
 
 

@@ -41,7 +41,7 @@ def test_macro_crud(client):
 
     create = client.post(
         "/macros",
-        json={"title": "Boas-vindas", "content": "Seja bem-vindo à Convexo!"},
+        json={"title": "Boas-vindas", "content": "Seja bem-vindo à Mochi!"},
         headers=h,
     )
     assert create.status_code == 201

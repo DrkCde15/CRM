@@ -7,7 +7,7 @@ from models.models import Client, Conversation
 from schemas.schemas import WebhookPayload
 from services import llm, realtime, whatsapp
 
-router = APIRouter(tags=["webhook"])
+router = APIRouter(prefix="/api", tags=["webhook"])
 
 
 async def _send_whatsapp(to: str, text: str) -> None:

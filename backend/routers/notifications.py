@@ -4,7 +4,7 @@ from core.database import SessionLocal
 from core.deps import get_current_user
 from models.models import Notification, User
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 @router.get("")

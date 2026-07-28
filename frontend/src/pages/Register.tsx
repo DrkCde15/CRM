@@ -7,7 +7,7 @@ import PasswordInput from '../components/PasswordInput'
 
 const roles = [
   { value: 'admin', label: 'Administrador', desc: 'Acesso total e gestão de usuários' },
-  { value: 'agent', label: 'Usuário normal', desc: 'Atendimento e operação do Convexo' },
+  { value: 'agent', label: 'Usuário normal', desc: 'Atendimento e operação do Mochi' },
 ]
 
 export default function Register() {
@@ -47,7 +47,7 @@ export default function Register() {
         className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 p-8 shadow-sm dark:bg-slate-800 dark:border-slate-700"
       >
         <div className="flex items-center gap-2 mb-6">
-          <img src="/logo.png" alt="Convexo" className="w-9 h-9 rounded-xl object-contain" />
+          <img src="/logo.png" alt="Mochi" className="w-9 h-9 rounded-xl object-contain" />
           <h1 className="text-lg font-semibold text-ink">Criar conta</h1>
         </div>
         <label className="block text-sm text-muted mb-1">Nome</label>

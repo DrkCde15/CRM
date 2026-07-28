@@ -10,7 +10,7 @@ from models.models import Client, Ticket, User
 from schemas.schemas import Paginated, TicketCreate, TicketOut
 from services import email, notifications, realtime, taky
 
-router = APIRouter(prefix="/tickets", tags=["tickets"])
+router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
 
 class TicketStatusUpdate(BaseModel):

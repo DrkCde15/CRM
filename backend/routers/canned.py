@@ -76,5 +76,5 @@ def make_router(kind: str, prefix: str, tag: str) -> APIRouter:
     return router
 
 
-router_quick_replies = make_router("quick_reply", "/quick-replies", "quick-replies")
-router_macros = make_router("macro", "/macros", "macros")
+router_quick_replies = make_router("quick_reply", "/api/quick-replies", "quick-replies")
+router_macros = make_router("macro", "/api/macros", "macros")

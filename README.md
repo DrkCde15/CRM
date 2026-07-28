@@ -1,11 +1,11 @@
 <div align="center">
-  <img src="frontend/public/logo.png" alt="Convexo" width="120" />
+  <img src="frontend/public/logo.png" alt="Mochi" width="300" />
 </div>
 
-# Convexo — Plataforma CRM Omnichannel
+# Mochi — Plataforma CRM Omnichannel
 
-> O Convexo é uma **plataforma CRM Omnichannel** desenvolvida para centralizar o atendimento ao cliente em um único lugar. Empresas podem gerenciar conversas provenientes de **WhatsApp**, **E-mail** e **Chat do Site**, além de controlar clientes, tickets, agendamentos, usuários, métricas e integrações por meio de uma única **Inbox inteligente**.
->
+> O Mochi é uma **plataforma CRM Omnichannel** desenvolvida para centralizar o atendimento ao cliente em um único lugar. Empresas podem gerenciar conversas provenientes de **WhatsApp** e **E-mail**, além de controlar clientes, tickets, agendamentos, usuários, métricas e integrações por meio de uma única **Inbox inteligente**.
+> 
 > O projeto foi pensado para empresas de diversos portes — do pequeno negócio ao ambiente multiempresa (SaaS) — com arquitetura modular, escalável e preparada para Inteligência Artificial.
 
 ## Sumário
@@ -15,7 +15,7 @@
 - [Arquitetura Multiempresa (Multi-Tenant)](#arquitetura-multiempresa-multi-tenant)
 - [Canais de atendimento](#canais-de-atendimento)
 - [Como rodar](#como-rodar)
-- [Widget de chat do site](#widget-de-chat-do-site-widget)
+
 - [Inbox unificada](#inbox-unificada)
 - [Dashboard Executivo](#dashboard-executivo)
 - [Webhooks](#webhooks)
@@ -41,22 +41,19 @@
 │   ├── alembic/      # Migrations do banco
 │   ├── core/         # Config, database, auth, security
 │   ├── models/       # SQLAlchemy models
-│   ├── routers/      # Endpoints (auth, clients, tickets, appointments, stats, webhook, email_channel, website_chat, inbox)
+│   ├── routers/      # Endpoints (auth, clients, tickets, appointments, stats, webhook, email_channel, inbox, ai, documents, search)
 │   ├── schemas/      # Pydantic schemas
-│   ├── services/     # Lógica de negócio (chat, email)
+│   ├── services/     # Lógica de negócio (email, llm, agent_manager, mcp_manager, document_processor, realtime)
 │   └── tests/        # Testes (pytest)
 ├── frontend/         # React + Vite + TypeScript + Tailwind
 │   └── src/
 │       ├── components/   # Layout, ChatBubble, Toaster
-│       ├── pages/        # Login, Register, ForgotPassword, ResetPassword, Inbox, Tickets, Appointments, Dashboard, Users
-│       ├── utils/        # Validações
+│       ├── pages/        # Login, Register, ForgotPassword, ResetPassword, Inbox, Tickets, Appointments, Dashboard, Channels, Users
+│       ├── core/         # Types, utils, hooks, services, UI kit, layout
+│       ├── modules/      # AI, Documents (modular architecture)
 │       ├── api.ts        # Axios client
 │       ├── store.ts      # Zustand (auth + toasts)
 │       └── types.ts
-├── widget/           # Chat widget do site (Vite + React, bundle IIFE/Shadow DOM)
-│   ├── src/             # api.ts, widget.tsx, main.tsx, styles.css
-│   ├── dist/            # bundle gerado (widget.iife.js)
-│   └── example.html     # página de exemplo para testar o widget
 └── gateway/          # Gateway WhatsApp (Node.js + Baileys)
     ├── index.js      # Servidor Express + Baileys WebSocket
     └── .env.example
@@ -66,20 +63,18 @@
 
 ## Arquitetura Geral
 
-O Convexo organiza todo o ecossistema de atendimento em camadas, da empresa até a inteligência artificial:
+O Mochi organiza todo o ecossistema de atendimento em camadas, da empresa até a inteligência artificial:
 
 ```
 Empresa
    ↓
-Convexo
+Mochi
    ↓
 Inbox Unificada
    ↓
 WhatsApp
    ↓
 E-mail
-   ↓
-Widget
    ↓
 Tickets
    ↓
@@ -108,7 +103,6 @@ O sistema já implementa isolamento lógico **Multi-Tenant**: cada empresa (tena
 - Tickets
 - Agendamentos
 - Configurações
-- Widget
 - Canais de comunicação
 - Dashboard
 
@@ -121,7 +115,6 @@ Empresa A
 ├── Tickets
 ├── WhatsApp
 ├── E-mail
-└── Widget
 
 Empresa B
 ├── Usuários
@@ -129,10 +122,9 @@ Empresa B
 ├── Tickets
 ├── WhatsApp
 ├── E-mail
-└── Widget
 ```
 
-O modo Multi-Tenant está **ativo**: todo o acesso a dados (usuários, clientes, tickets, agendamentos, conversas, respostas rápidas, widget, canais e métricas) é filtrado por `company_id = user.company_id` nos routers. A `Company` padrão (`id=1`, `"Empresa Padrão"`) é criada automaticamente no primeiro cadastro. A criação de novas empresas via auto-cadastro (signup que gera seu próprio tenant) e convites permanecem no **roadmap**.
+O modo Multi-Tenant está **ativo**: todo o acesso a dados (usuários, clientes, tickets, agendamentos, conversas, respostas rápidas, canais e métricas) é filtrado por `company_id = user.company_id` nos routers. A `Company` padrão (`id=1`, `"Empresa Padrão"`) é criada automaticamente no primeiro cadastro. A criação de novas empresas via auto-cadastro (signup que gera seu próprio tenant) e convites permanecem no **roadmap**.
 
 ---
 
@@ -142,13 +134,6 @@ O modo Multi-Tenant está **ativo**: todo o acesso a dados (usuários, clientes,
 |---|---|---|
 | **WhatsApp** | Gateway Node (Baileys) | Tabela `conversations` → Inbox (canal `whatsapp`) |
 | **E-mail** | Conta IMAP/SMTP ou Google Apps Script | Tabela `email_conversations` → Inbox (canal `email`) |
-| **Chat do site** | Widget embarcado no site do cliente | Tabela `website_conversations` → Inbox (canal `website`) |
-
-**Toda interação iniciada pelo widget vira uma conversa listável na Inbox**, independente do canal escolhido pelo visitante:
-
-- **💬 Chat no site** — abre o chat em tempo real (WebSocket `/chat/ws`). Cria `WebsiteConversation` + `WebsiteMessage`.
-- **📱 WhatsApp** — abre o `wa.me` e, antes, registra um *lead* (`POST /widget/lead`) criando uma `WebsiteConversation`.
-- **✉️ E-mail** — formulário que (1) envia um e-mail externo para o `contact_email` da empresa via Google Apps Script e (2) cria uma `WebsiteConversation` com os dados do lead.
 
 ---
 
@@ -172,45 +157,37 @@ uvicorn main:app --reload --host localhost --port 8000   # http://localhost:8000
 
 Variáveis mínimas em `backend/.env`:
 - `SECRET_KEY` — gere com `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
-- `ALLOWED_ORIGINS` — lista de origens CORS. Inclua `http://localhost:5173` (frontend), `http://localhost:3000`, `http://localhost:8080` (página de exemplo do widget) e `http://localhost:5174`.
-- `EMAIL_GOOGLE_SCRIPT_URL` + `EMAIL_GOOGLE_SCRIPT_SECRET` — necessárias para envio de e-mails (tickets, reset de senha e formulário do widget). Sem elas, o envio é ignorado (apenas log).
+- `ALLOWED_ORIGINS` — lista de origens CORS. Inclua `http://localhost:5173` (frontend), `http://localhost:3000` e `http://localhost:8000`.
+- `EMAIL_GOOGLE_SCRIPT_URL` + `EMAIL_GOOGLE_SCRIPT_SECRET` — necessárias para envio de e-mails (tickets, reset de senha). Sem elas, o envio é ignorado (apenas log).
 - `FRONTEND_URL` — usada nos links de redefinição de senha (padrão `http://localhost:5173`).
 
-O primeiro cadastro pela tela de Registro cria o usuário **admin** inicial.
+O cadastro pela tela de Registro é **aberto a qualquer pessoa** (sem restrição de admin).
 
-> ⚠️ **Não execute os servicos em background manualmente** (ex.: `setsid nohup ... &`). Para produção, use um gerenciador de processos (systemd, supervisor) ou um proxy reverso (nginx) — não deixe processos órfos na sessão interativa.
+> ⚠️ **Não execute os servicos em background manualmente** (ex.: `setsid nohup ... &`). Para produção, use um gerenciador de processos (systemd, supervisor) ou um proxy reverso (nginx) — não deixe processos órfãos na sessão interativa.
 
-> 💡 **Rodar só com o backend:** o `main.py` serve automaticamente o build do frontend (`frontend/dist`, na raiz) e o widget (`widget/`, em `/widget`) quando as pastas `dist` existirem. Assim, basta `uvicorn main:app --reload --host0.0.0.0 --port 8000` para operar toda a plataforma em **um único processo** — o gateway de WhatsApp continua opcional. Para isso, gere os builds uma vez:
+> 💡 **Rodar só com o backend:** o `main.py` serve automaticamente o build do frontend (`frontend/dist`). Assim, basta `uvicorn main:app --reload --host localhost --port 8000` para operar toda a plataforma em **um único processo** — o gateway de WhatsApp continua opcional. Para isso, gere o build uma vez:
 > ```bash
 > cd frontend && npm install && npm run build
-> cd ../widget && npm install && npm run build
 > ```
-> Acesse `http://localhost:8000/` (API e app ficam na mesma origem; o `VITE_API_URL` pode ficar vazio). O exemplo do widget fica em `http://localhost:8000/widget/example.html`.
+> Acesse `http://localhost:8000/` (API e app ficam na mesma origem; o `VITE_API_URL` pode ficar vazio).
 >
-> Limitação: deep-links diretos para rotas autenticadas (`/inbox`, `/tickets`, etc.) enquanto deslogado retornam o `401` da API em vez do app — navegue pelo app após o login. Em produço, sirva o SPA atrás de um proxy reverso com fallback para `index.html`.
+> Limitação: deep-links diretos para rotas autenticadas (`/inbox`, `/tickets`, etc.) enquanto deslogado retornam o `401` da API em vez do app — navegue pelo app após o login. Em produção, sirva o SPA atrás de um proxy reverso com fallback para `index.html`.
 
 > Na subida, o backend valida o `.env` (via `settings.validate()`) e emite **warnings** no log se faltarem `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_ORIGINS` ou `API_GROQ` (quando `LLM_PROVIDER=groq`). Corrija-os antes de usar em produção.
 
-### 2. Frontend (React — porta 5173)
+### 2. Frontend (SPA — servido pelo backend)
+
+O frontend é compilado e servido pelo próprio FastAPI:
 
 ```bash
 cd frontend
 npm install
-npm run dev                       # http://localhost:5173
+npm run build                     # gera dist/ (servido em http://localhost:8000/)
 ```
 
-### 3. Widget de chat do site (porta 8080 = exemplo)
+> Para desenvolvimento com hot-reload, rode `npm run dev` em paralelo em http://localhost:5173 e configure `VITE_API_URL=http://localhost:8000/api`.
 
-```bash
-cd widget
-npm install
-npm run build                     # gera dist/widget.iife.js
-python3 -m http.server 8080       # serve example.html (ou hospede dist/ no site do cliente)
-```
-
-Para testar: `http://localhost:8080/example.html?token=SEU_TOKEN&api=http://localhost:8000`.
-
-### 4. Gateway WhatsApp (opcional — porta 3001)
+### 3. Gateway WhatsApp (opcional — porta 3001)
 
 ```bash
 cd gateway
@@ -221,52 +198,7 @@ node index.js                     # escaneie o QR code com o WhatsApp
 
 > O frontend se comunica com o backend em `http://localhost:8000` (configure `VITE_API_URL` para outro endereço). O gateway é independente e só é necessário se quiser o canal WhatsApp.
 
----
 
-## Widget de chat do site (`widget/`)
-
-Widget autocontido em **React**, empacotado como **IIFE** (`dist/widget.iife.js`) e montado dentro de um **Shadow DOM** — isolado do CSS do site do cliente.
-
-### Como embarcar em um site
-
-```html
-<!-- Elemento onde o widget é montado -->
-<div id="convexo-chat" data-token="SEU_TOKEN" data-api="https://api.convexo.com"></div>
-
-<!-- Bundle do widget (após npm install && npm run build) -->
-<script src="https://SEU_CDN/widget.iife.js"></script>
-```
-
-- `data-token` — `api_token` da `WidgetConfig` (gerado no admin).
-- `data-api` — URL base da API (`https://api.convexo.com`). Também aceito via `window.CONVEXO_API`.
-- A `example.html` lê `?token=` e `?api=` da query string e injeta nos atributos automaticamente.
-
-### Telas do widget
-
-1. **Balão (💬)** → abre o menu de canais: Chat no site / WhatsApp / E-mail.
-2. **Chat no site** → chat em tempo real via WebSocket (`/chat/ws`). Suporta envio de arquivos (`/chat/upload`).
-3. **WhatsApp** → registra o lead no CRM e abre `https://wa.me/<numero>?text=...` numa nova aba.
-4. **E-mail** → formulário (nome, e-mail, mensagem) que dispara e-mail externo **e** cria o lead no CRM.
-
-### Endpoints do widget (backend)
-
-| Método | Rota | Auth | Descrição |
-|---|---|---|---|
-| `GET` | `/widget/config?token=` | público | Config pública do widget (nome, cor, mensagens, `whatsapp_number`, `contact_email`) |
-| `POST` | `/widget/config` | admin | Cria config de widget (gera `api_token`) |
-| `PUT` | `/widget/config/{id}` | admin | Atualiza config (cor, `whatsapp_number`, `contact_email`, etc.) |
-| `POST` | `/widget/email?token=` | público | Recebe o formulário de e-mail: envia e-mail externo + cria `WebsiteConversation` |
-| `POST` | `/widget/lead?token=` | público | Registra um lead (ex.: clique em WhatsApp) criando `WebsiteConversation` |
-| `POST` | `/chat/connect` | público | Cria/recupera visitante + `WebsiteConversation` (retorna `id`) |
-| `GET` | `/chat/history/{id}` | usuário | Histórico de mensagens do chat |
-| `POST` | `/chat/send` | público/usuário | Envia mensagem (visitante ou agente); difunde via WebSocket |
-| `POST` | `/chat/{id}/assign` | usuário | Atribui conversa a um agente |
-| `POST` | `/chat/{id}/close` | usuário | Fecha a conversa |
-| `WS` | `/chat/ws?conversation_id=` | — | WebSocket de tempo real do chat |
-
-Rate limit: 30 req/min por chave (token/sessão/conversa).
-
----
 
 ## Inbox unificada
 
@@ -274,7 +206,7 @@ Todos os canais aparecem numa única lista (`frontend/src/pages/Inbox.tsx`), com
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/inbox?channel=whatsapp\|email\|website&include_archived=` | Lista unificada (`InboxItem`: canal, assunto, última mensagem, status, `ticket_id`, `client_tipo`, `read`, `archived`) |
+| `GET` | `/inbox?channel=whatsapp\|email&include_archived=` | Lista unificada (`InboxItem`: canal, assunto, última mensagem, status, `ticket_id`, `client_tipo`, `read`, `archived`) |
 | `GET` | `/inbox/channels` | Status de quais canais estão configurados |
 | `GET` | `/inbox/gateway-status` | Status da conexão WhatsApp via gateway (`{connected, detail}`) |
 | `PATCH` | `/inbox/whatsapp/{id}/read` | Marca a conversa como lida |
@@ -283,9 +215,8 @@ Todos os canais aparecem numa única lista (`frontend/src/pages/Inbox.tsx`), com
 
 - **WhatsApp** → lê `conversations`.
 - **E-mail** → lê `email_conversations` (com `emailChannel.conversation` para o detalhe e resposta por e-mail).
-- **Website** → lê `website_conversations` (com `websiteChat.history` para o detalhe e resposta via chat).
 
-Ao responder no canal **Website** pela Inbox, a mensagem é enviada ao visitante via WebSocket (`/chat/send`). Ao responder no canal **E-mail**, usa `emailChannel.send` (requer uma `EmailAccount` ativa).
+Ao responder no canal **E-mail**, usa `emailChannel.send` (requer uma `EmailAccount` ativa).
 
 ### Indicadores e ações na Inbox
 
@@ -312,7 +243,7 @@ Gestão de clientes (por empresa). O bot qualifica o lead como **Empresa** ou **
 
 ## Respostas Rápidas & Macros
 
-O Convexo inclui **Respostas Rápidas** e **Macros** — respostas pré-definidas para agilizar o atendimento na Inbox (sem necessidade de IA).
+O Mochi inclui **Respostas Rápidas** e **Macros** — respostas pré-definidas para agilizar o atendimento na Inbox (sem necessidade de IA).
 
 - **Respostas Rápidas** — snippets curtos, inseríveis com um clique no campo de resposta.
 - **Macros** — respostas mais estruturadas/formatadas, também inseríveis na resposta.
@@ -340,13 +271,13 @@ Endpoints (requerem autenticação):
 
 ## Dashboard Executivo
 
-O Convexo conta com um **Dashboard** voltado à gestão e à tomada de decisão, reunindo os principais indicadores de atendimento e operação.
+O Mochi conta com um **Dashboard** voltado à gestão e à tomada de decisão, reunindo os principais indicadores de atendimento e operação.
 
 Indicadores disponíveis ou planejados:
 
 | Indicador | Descrição |
 |---|---|
-| Conversas por canal | Volume de atendimentos dividido por WhatsApp, E-mail e Widget |
+| Conversas por canal | Volume de atendimentos dividido por WhatsApp e E-mail |
 | Conversas do dia | Total de conversas iniciadas no dia corrente |
 | Tickets abertos | Quantidade de tickets em aberto |
 | Tickets fechados | Quantidade de tickets resolvidos |
@@ -366,7 +297,7 @@ Todos os indicadores devem ser **atualizados em tempo real** sempre que possíve
 
 ## Webhooks
 
-O Convexo permite que **sistemas externos recebam eventos em tempo real** via Webhooks. Cada evento é disparado quando algo relevante acontece na plataforma, permitindo integrações com CRMs externos, BI, automações e notificações.
+O Mochi permite que **sistemas externos recebam eventos em tempo real** via Webhooks. Cada evento é disparado quando algo relevante acontece na plataforma, permitindo integrações com CRMs externos, BI, automações e notificações.
 
 Eventos suportados (ou previstos) pela plataforma:
 
@@ -396,8 +327,8 @@ Exemplo de payload:
   "timestamp": "2026-07-14T14:00:00Z",
   "data": {
     "conversation_id": 12,
-    "channel": "website",
-    "visitor": "Maria Teste"
+    "channel": "whatsapp",
+    "client": "Maria Teste"
   }
 }
 ```
@@ -408,7 +339,7 @@ Os webhooks poderão ser **configurados individualmente por empresa** (no modelo
 
 ## Integrações
 
-O Convexo foi desenhado com **integrações abertas**, reunindo comunicação, calendários, dados, APIs e inteligência artificial.
+O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, calendários, dados, APIs e inteligência artificial.
 
 ### Comunicação
 
@@ -417,7 +348,7 @@ O Convexo foi desenhado com **integrações abertas**, reunindo comunicação, c
 | WhatsApp | ✅ Disponível (via gateway) |
 | Gmail | 📋 Planejado |
 | Outlook | 📋 Planejado |
-| SMTP | ✅ Disponível (Google Apps Script) |
+| SMTP | ✅ Disponível (envio de e-mail via Google Apps Script) |
 | IMAP | 🔄 Em desenvolvimento |
 
 ### Calendários
@@ -457,7 +388,7 @@ Novas integrações poderão ser adicionadas futuramente, respeitando a arquitet
 
 ## Inteligência Artificial
 
-O Convexo foi projetado para incorporar **recursos avançados de IA**, tornando o atendimento mais rápido, consistente e escalável. Atualmente, o **auto-atendimento via IA no WhatsApp** já está operacional (ver seção *Assistente Virtual*).
+O Mochi foi projetado para incorporar **recursos avançados de IA**, tornando o atendimento mais rápido, consistente e escalável. Atualmente, o **auto-atendimento via IA no WhatsApp** já está operacional (ver seção *Assistente Virtual*).
 
 Funcionalidades planejadas:
 
@@ -483,14 +414,13 @@ Todos esses recursos utilizarão uma **arquitetura desacoplada**, permitindo dif
 
 ## Segurança & Contas
 
-- **Primeiro cadastro** cria o admin inicial (tela de registro).
-- **Novos usuários** só podem ser criados por um admin (tela "Usuários", visível só para admin).
-- **Tipos de conta**: `admin` (gestão completa) e `agent` (operação).
+- **Cadastro** aberto a qualquer pessoa (sem restrição de admin).
+- **Tipos de conta**: `admin` (gestão completa) e `agent` (operação). Usuários admin podem gerenciar outros usuários na tela "Usuários".
 - **Política de senha**: mín. 8 caracteres, com maiúscula, minúscula e número.
 - **Rate limit de login**: 5 tentativas falhas → bloqueio de 5 min (HTTP 429).
-- **Tokens JWT** com expiração (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Tokens JWT** sem expiração.
 - **Redefinição de senha**: `/auth/forgot-password` gera um token (1h) e envia link por e-mail; `/auth/reset-password` aplica a nova senha e invalida o token.
-- **Cabeçalhos de segurança**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e `Content-Security-Policy`. O CSP usado é `default-src 'self'` + `script-src`/`style-src` com `'unsafe-inline'` (necessário para o SPA e para o `<script>` inline do exemplo do widget) — **não use `default-src 'none'`, pois isso bloqueia o própio JS/CSS do app e a tela fica em branco**.
+- **Cabeçalhos de segurança**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e `Content-Security-Policy`. O CSP usado é `default-src 'self'` + `script-src`/`style-src` com `'unsafe-inline'` — **não use `default-src 'none'`, pois isso bloqueia o própio JS/CSS do app e a tela fica em branco**.
 
 ## Notificações
 
@@ -499,8 +429,6 @@ Todos esses recursos utilizarão uma **arquitetura desacoplada**, permitindo dif
 Ao criar um chamado (`POST /tickets`), o backend dispara e-mails HTML para **todos os usuários da empresa** (multitenant), em background (`services/email.py`).
 
 O envio é feito **sempre via Google Apps Script**: o backend faz um `POST` JSON `{to, subject, html, fromName?}` para a `EMAIL_GOOGLE_SCRIPT_URL` (um web app deployado que envia o e-mail via `GmailApp`). Se a URL não estiver configurada, o envio é ignorado silenciosamente (apenas log).
-
-O formulário de e-mail do widget também usa esse mesmo caminho, enviando para o `contact_email` configurado na `WidgetConfig`.
 
 ### Push (navegador)
 
@@ -528,14 +456,14 @@ Endpoints (`routers/notifications.py`):
 
 ## Gateway WhatsApp
 
-Microserviço Node.js que conecta o Convexo ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
+Microserviço Node.js que conecta o Mochi ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
 
 ```
-WhatsApp <──> Gateway (porta 3001) <──> Backend Convexo (porta 8000)
+WhatsApp <──> Gateway (porta 3001) <──> Backend Mochi (porta 8000)
 ```
 
-- **Entrada** (WhatsApp → Convexo): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend.
-- **Saída** (Convexo → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens.
+- **Entrada** (WhatsApp → Mochi): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend.
+- **Saída** (Mochi → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens.
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -581,7 +509,7 @@ WhatsApp → Gateway (Baileys, :3001) → POST /webhook (backend :8000)
 |---|---|---|
 | Backend | ruff + black + pytest | `ruff check .` · `black .` · `pytest -q` |
 | Frontend | eslint + prettier + vitest | `npm run lint` · `npm run format` · `npm test` |
-| Widget | eslint + build | `npm run build` |
+
 
 Os testes do backend usam um banco temporário (via `conftest`), então não tocam no `crm.db` de desenvolvimento.
 
@@ -608,7 +536,7 @@ python db.py stamp head                # marca versão sem rodar
 |---|---|
 | `DATABASE_URL` | SQLite ou PostgreSQL |
 | `SECRET_KEY` | Chave JWT |
-| `ALLOWED_ORIGINS` | Origens CORS (inclua 5173, 3000, 8080, 5174) |
+| `ALLOWED_ORIGINS` | Origens CORS (inclua 5173, 3000, 8000) |
 | `GATEWAY_URL` | URL base do gateway |
 | `WHATSAPP_WEBHOOK_URL` | URL para onde o gateway envia as mensagens |
 | `FRONTEND_URL` | URL do frontend (usada nos links de redefinição de senha) |
@@ -654,7 +582,6 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 |---|---|
 | WhatsApp | ✅ Disponível |
 | E-mail | ✅ Disponível |
-| Widget | ✅ Disponível |
 
 ### IA
 
@@ -695,7 +622,7 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 
 - **Centralização do atendimento** em um único lugar.
 - **Inbox unificada** para todos os canais.
-- **Comunicação Omnichannel** (WhatsApp, E-mail, Chat do Site).
+- **Comunicação Omnichannel** (WhatsApp, E-mail).
 - **Escalabilidade** para crescer com o negócio.
 - **Arquitetura modular** e desacoplada.
 - **Preparado para SaaS**.
@@ -704,6 +631,5 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 - **Webhooks** para eventos em tempo real.
 - **Automações** para ganhar produtividade.
 - **Preparado para IA** (sugestões, resumos, RAG, chatbot).
-- **Widget incorporável** a qualquer site.
 - **Alta segurança** (JWT, cabeçalhos, rate limit).
 - **Arquitetura moderna** (FastAPI, React, Node/Baileys).

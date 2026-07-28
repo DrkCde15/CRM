@@ -14,3 +14,6 @@ aiosmtplib
 pytest
 ruff
 black
+PyPDF2
+python-docx
+openpyxl

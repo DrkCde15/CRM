@@ -11,20 +11,22 @@ from fastapi.responses import FileResponse
 from core.config import settings
 from core.database import Base, engine
 
-logger = logging.getLogger("convexo")
+logger = logging.getLogger("mochi")
 from routers import (
+    ai,
     appointments,
     auth,
     canned,
     clients,
+    documents,
     email_channel,
     inbox,
     notifications,
     realtime,
+    search,
     stats,
     tickets,
     webhook,
-    website_chat,
 )
 
 @asynccontextmanager
@@ -131,11 +133,13 @@ app.include_router(stats.router)
 app.include_router(webhook.router)
 app.include_router(notifications.router)
 app.include_router(email_channel.router)
-app.include_router(website_chat.router)
 app.include_router(inbox.router)
 app.include_router(canned.router_quick_replies)
 app.include_router(canned.router_macros)
 app.include_router(realtime.router)
+app.include_router(ai.router)
+app.include_router(documents.router)
+app.include_router(search.router)
 
 
 @app.get("/health")
@@ -144,26 +148,18 @@ def health():
 
 
 # ───────────────────── Serviço de estáticos (rodar só com o backend) ─────────────────────
-# O build do frontend (frontend/dist) é servido na raiz e o widget na pasta /widget,
-# permitindo operar toda a plataforma apenas com `uvicorn main:app` (o gateway
-# de WhatsApp continua opcional).
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _FRONTEND_DIST = os.path.normpath(os.path.join(_BASE_DIR, "..", "frontend", "dist"))
-_WIDGET_DIR = os.path.normpath(os.path.join(_BASE_DIR, "..", "widget"))
-
-if os.path.isdir(_WIDGET_DIR):
-    app.mount(
-        "/widget",
-        StaticFiles(directory=_WIDGET_DIR, html=True),
-        name="widget-static",
-    )
 
 if os.path.isdir(_FRONTEND_DIST):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def _spa_fallback(full_path: str):
-        # Serve arquivos reais do build; rotas do SPA caem no index.html.
         candidate = os.path.join(_FRONTEND_DIST, full_path)
         if full_path and os.path.isfile(candidate):
-            return FileResponse(candidate)
-        return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"))
+            headers = {"Cache-Control": "public, max-age=31536000, immutable"} if full_path.startswith("assets/") else {}
+            return FileResponse(candidate, headers=headers)
+        return FileResponse(
+            os.path.join(_FRONTEND_DIST, "index.html"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )

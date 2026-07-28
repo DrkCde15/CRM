@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Convexo"
+    app_name: str = "Mochi"
     database_url: str = "sqlite:///./crm.db"
     secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     gateway_url: str = "http://localhost:3001"
-    whatsapp_webhook_url: str = "http://localhost:8000/webhook"
+    whatsapp_webhook_url: str = "http://localhost:8000/api/webhook"
     auto_start_gateway: bool = False
     gateway_path: str = "../gateway"
     frontend_url: str = "http://localhost:5173"
@@ -98,7 +98,7 @@ class Settings(BaseSettings):
         if not self.database_url:
             issues.append("DATABASE_URL não definido.")
         if not self.allowed_origins:
-            issues.append("ALLOWED_ORIGINS vazio — defina as origens do frontend/widget.")
+            issues.append("ALLOWED_ORIGINS vazio — defina as origens do frontend.")
         provider = (self.llm_provider or "groq").lower()
         if provider == "groq" and not self.api_groq:
             issues.append("LLM_PROVIDER=groq sem API_GROQ: respostas de IA indisponíveis.")

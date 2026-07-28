@@ -13,13 +13,10 @@ import type {
   Stats,
   Ticket,
   User,
-  WebsiteConversation,
-  WebsiteMessage,
-  WidgetConfig,
 } from './types'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
 })
 
 api.interceptors.request.use((config) => {
@@ -146,26 +143,6 @@ export const emailChannel = {
   }) => (await api.post('/email/send', body)).data,
   sync: async (id: number) => (await api.post(`/email/sync/${id}`)).data,
   syncAll: async () => (await api.post('/email/sync')).data,
-}
-
-export const websiteChat = {
-  configs: async () => (await api.get<WidgetConfig[]>('/widget/config')).data,
-  createConfig: async (body: Partial<WidgetConfig>) =>
-    (await api.post<WidgetConfig>('/widget/config', body)).data,
-  updateConfig: async (id: number, body: Partial<WidgetConfig>) =>
-    (await api.put<WidgetConfig>(`/widget/config/${id}`, body)).data,
-  conversations: async (skip = 0, limit = 50, status?: string) =>
-    (await api.get<WebsiteConversation[]>('/chat/conversations', {
-      params: { skip, limit, ...(status ? { status } : {}) },
-    })).data,
-  history: async (id: number) =>
-    (await api.get<WebsiteMessage[]>(`/chat/history/${id}`)).data,
-  send: async (conversation_id: number, message: string, attachments: unknown[] = []) =>
-    (await api.post('/chat/send', { conversation_id, message, attachments })).data,
-  assign: async (id: number, assigned_user: number | null) =>
-    (await api.post<WebsiteConversation>(`/chat/${id}/assign`, { assigned_user })).data,
-  close: async (id: number) =>
-    (await api.post<WebsiteConversation>(`/chat/${id}/close`)).data,
 }
 
 export const canned = {
