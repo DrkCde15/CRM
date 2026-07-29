@@ -36,6 +36,13 @@ export const aiApi = {
     const { data } = await api.put(`/ai/mcp/${id}`, body)
     return data
   },
+  deleteMCPClient: async (id: string) => {
+    await api.delete(`/ai/mcp/${id}`)
+  },
+  restartMCPClient: async (id: string) => {
+    const { data } = await api.post(`/ai/mcp/${id}/restart`)
+    return data
+  },
   insights: async () => {
     const { data } = await api.get('/ai/insights')
     return data

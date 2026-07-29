@@ -288,7 +288,7 @@ export default function Inbox() {
                 <Bubble key={m.id} who={m.response ? 'agent' : 'client'} text={m.response || m.message} ts={m.created_at} />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={selected.subject} userName={user?.nome || user?.email} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={selected.subject} userName={user?.name || user?.email} />
           </>
         ) : detail.kind === 'email' ? (
           <>
@@ -304,7 +304,7 @@ export default function Inbox() {
                 />
               ))}
             </Thread>
-            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={detail.conv.subject} userName={user?.nome || user?.email} />
+            <ReplyBox value={reply} onChange={setReply} onSend={sendReply} quick={quick} macros={macros} suggestions={suggestions} onSuggest={loadSuggestions} suggestLoading={suggestLoading} clientName={detail.conv.subject} userName={user?.name || user?.email} />
           </>
         ) : null}
         </section>

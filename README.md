@@ -16,11 +16,15 @@
 - [Canais de atendimento](#canais-de-atendimento)
 - [Como rodar](#como-rodar)
 
+- [Layout Responsivo](#layout-responsivo)
+- [Automações](#automações)
 - [Inbox unificada](#inbox-unificada)
 - [Dashboard Executivo](#dashboard-executivo)
 - [Webhooks](#webhooks)
 - [Integrações](#integrações)
 - [Inteligência Artificial](#inteligência-artificial)
+- [Servidores MCP (Model Context Protocol)](#servidores-mcp-model-context-protocol)
+- [Tarefas Agendadas (Scheduler)](#tarefas-agendadas-scheduler)
 - [Segurança & Contas](#segurança--contas)
 - [Notificações](#notificações)
 - [Gateway WhatsApp](#gateway-whatsapp)
@@ -40,20 +44,29 @@
 ├── backend/          # API FastAPI (Python)
 │   ├── alembic/      # Migrations do banco
 │   ├── core/         # Config, database, auth, security
-│   ├── models/       # SQLAlchemy models
-│   ├── routers/      # Endpoints (auth, clients, tickets, appointments, stats, webhook, email_channel, inbox, ai, documents, search)
+│   ├── models/       # SQLAlchemy models (User, Client, Ticket, MCPServer, ScheduledJob, etc.)
+│   ├── routers/      # Endpoints (auth, clients, tickets, appointments, stats, webhook, email_channel, inbox, ai, calendar, sla, notifications, etc.)
 │   ├── schemas/      # Pydantic schemas
-│   ├── services/     # Lógica de negócio (email, llm, agent_manager, mcp_manager, document_processor, realtime)
+│   ├── services/     # Lógica de negócio
+│   │   ├── email.py           # Envio de e-mail via Google Apps Script
+│   │   ├── llm.py             # Provedores de IA (Groq, OpenAI, Anthropic, Gemini, Ollama)
+│   │   ├── agent_manager.py   # Gerenciamento de agentes IA
+│   │   ├── mcp_manager.py     # Servidores MCP via Docker ou in-memory
+│   │   ├── scheduler.py       # Tarefas agendadas (SLA, lembretes, limpeza)
+│   │   ├── notifier.py        # Notificações in-app multicamada
+│   │   ├── sla.py             # Verificação de SLA
+│   │   └── document_processor.py, realtime.py, etc.
 │   └── tests/        # Testes (pytest)
 ├── frontend/         # React + Vite + TypeScript + Tailwind
 │   └── src/
-│       ├── components/   # Layout, ChatBubble, Toaster
-│       ├── pages/        # Login, Register, ForgotPassword, ResetPassword, Inbox, Tickets, Appointments, Dashboard, Channels, Users
 │       ├── core/         # Types, utils, hooks, services, UI kit, layout
-│       ├── modules/      # AI, Documents (modular architecture)
-│       ├── api.ts        # Axios client
-│       ├── store.ts      # Zustand (auth + toasts)
-│       └── types.ts
+│       │   └── components/layout/
+│       │       ├── AppShell.tsx      # Shell responsivo com Sidebar apenas
+│       │       ├── Sidebar.tsx       # Navegação principal (drawer/overlay)
+│       │       └── PageHeader.tsx    # Título + descrição + ações
+│       ├── pages/        # Dashboard, Inbox, Tickets, Appointments, Automations, CalendarSettings, Channels, Users
+│       ├── modules/      # AI (chat, MCP, agentes), Documents
+│       └── api.ts, store.ts, types.ts
 └── gateway/          # Gateway WhatsApp (Node.js + Baileys)
     ├── index.js      # Servidor Express + Baileys WebSocket
     └── .env.example
@@ -163,7 +176,11 @@ Variáveis mínimas em `backend/.env`:
 
 O cadastro pela tela de Registro é **aberto a qualquer pessoa** (sem restrição de admin).
 
-> ⚠️ **Não execute os servicos em background manualmente** (ex.: `setsid nohup ... &`). Para produção, use um gerenciador de processos (systemd, supervisor) ou um proxy reverso (nginx) — não deixe processos órfãos na sessão interativa.
+> ⚠️ **Para manter o backend rodando em background no WSL**, use `tmux` ou `screen`:
+> ```bash
+> tmux new-session -d -s mochi "cd backend && .venv-linux/bin/uvicorn main:app --host 0.0.0.0 --port 8000"
+> ```
+> Em produção, use systemd, supervisor ou um proxy reverso (nginx).
 
 > 💡 **Rodar só com o backend:** o `main.py` serve automaticamente o build do frontend (`frontend/dist`). Assim, basta `uvicorn main:app --reload --host localhost --port 8000` para operar toda a plataforma em **um único processo** — o gateway de WhatsApp continua opcional. Para isso, gere o build uma vez:
 > ```bash
@@ -187,7 +204,21 @@ npm run build                     # gera dist/ (servido em http://localhost:8000
 
 > Para desenvolvimento com hot-reload, rode `npm run dev` em paralelo em http://localhost:5173 e configure `VITE_API_URL=http://localhost:8000/api`.
 
-### 3. Gateway WhatsApp (opcional — porta 3001)
+### 3. Docker (opcional — para MCP Servers)
+
+Se quiser rodar servidores MCP via containers:
+
+```bash
+# Inicie o daemon Docker (se não estiver rodando)
+wsl -u root bash -c 'dockerd --iptables=false &'
+
+# O backend detecta Docker automaticamente na inicialização.
+# Sem Docker, o MCP Manager roda em modo in-memory.
+```
+
+> O backend usa `docker-py` para gerenciar o ciclo de vida dos containers MCP (pull, run, stop, restart, remove). Configure o servidor MCP na interface com uma imagem Docker e o backend tratará do resto.
+
+### 4. Gateway WhatsApp (opcional — porta 3001)
 
 ```bash
 cd gateway
@@ -224,6 +255,36 @@ Ao responder no canal **E-mail**, usa `emailChannel.send` (requer uma `EmailAcco
 - **Não lida / lida**: conversas WhatsApp recebidas entram como *não lidas*; o agente marca como lida (`PATCH .../read`). Itens não lidos aparecem em destaque.
 - **Arquivar**: `PATCH .../archive` (e `.../unarchive`); arquivadas são ocultadas por padrão (`GET /inbox?include_archived=true` para revelá-las).
 - **Status do gateway WhatsApp**: `GET /inbox/gateway-status` retorna `{connected, detail}` (proxy do `/health` do gateway) e alimenta o indicador no navbar.
+
+---
+
+## Layout Responsivo
+
+O Mochi usa **Sidebar como navegação principal** (sem Topbar/Header global). O layout adapta-se a três breakpoints:
+
+| Dispositivo | Comportamento |
+|---|---|
+| **Desktop** (≥1024px) | Sidebar fixa à esquerda, conteúdo à direita |
+| **Tablet** (768-1023px) | Sidebar colapsável com botão hamburger |
+| **Mobile** (<768px) | Sidebar em drawer com overlay escuro, hamburger no topo |
+
+Componentes:
+- **`AppShell.tsx`** — shell responsivo que gerencia estado da sidebar e animações.
+- **`Sidebar.tsx`** — navegação agrupada (Principal, Inteligência Artificial, Ferramentas, Administração), indicador ativo com barra animada, alternador de tema escuro/claro e botão de logout.
+- **`PageHeader.tsx`** — componente reutilizável com título, descrição e slot de ações, usado em todas as páginas.
+
+---
+
+## Automações
+
+Página central (`/automations`) que reúne ferramentas de automação em cards:
+
+| Card | Descrição |
+|---|---|
+| **Workflows** | Editor visual de fluxos de automação |
+| **SLA** | Metas e violações de tempo de atendimento |
+| **Webhooks** | Eventos enviados para sistemas externos |
+| **Tarefas Agendadas** | Jobs periódicos (SLA, lembretes, limpeza) |
 
 ---
 
@@ -351,11 +412,12 @@ O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, cal
 | SMTP | ✅ Disponível (envio de e-mail via Google Apps Script) |
 | IMAP | 🔄 Em desenvolvimento |
 
-### Calendários
+### Calendários / Tarefas
 
 | Integração | Status |
 |---|---|
-| Google Calendar | 📋 Planejado |
+| Tarefas Agendadas (scheduler interno) | ✅ Disponível |
+| Google Calendar | Substituído por scheduler interno |
 | Outlook Calendar | 📋 Planejado |
 
 ### Banco de Dados
@@ -365,6 +427,13 @@ O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, cal
 | PostgreSQL | 🔄 Em desenvolvimento |
 | SQLite | ✅ Disponível (desenvolvimento) |
 | Redis | 📋 Planejado (cache/fila) |
+
+### MCP / Docker
+
+| Integração | Status |
+|---|---|
+| Docker SDK (gerenciamento de containers) | ✅ Disponível |
+| MCP Servers | ✅ Disponível |
 
 ### APIs
 
@@ -412,6 +481,76 @@ Todos esses recursos utilizarão uma **arquitetura desacoplada**, permitindo dif
 
 ---
 
+## Servidores MCP (Model Context Protocol)
+
+O Mochi gerencia servidores MCP via **Docker** (ou modo in-memory quando Docker não está disponível) para estender as capacidades da IA com ferramentas externas.
+
+### Ciclo de vida do container
+
+| Ação | Descrição |
+|---|---|
+| **Criar** | `docker pull` da imagem → `docker run` com env vars e porta mapeada |
+| **Reiniciar** | `docker restart` no container |
+| **Excluir** | `docker stop` + `docker rm` + registro removido do banco |
+| **Ativar/Desativar** | Alterna o estado `enabled` no banco (não afeta o container) |
+
+### Modelo `MCPServer`
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `name` | string | Nome do servidor |
+| `image` | string | Imagem Docker (ex: `ghcr.io/my-org/mcp-server`) |
+| `serverUrl` | string | URL externa (alternativa ao Docker) |
+| `port` | int | Porta mapeada |
+| `containerName` | string | Nome do container no Docker |
+| `containerId` | string | ID do container |
+| `status` | `running` / `stopped` / `error` | Estado atual |
+| `envVars` | dict | Variáveis de ambiente |
+| `type` | string | Tipo (github, postgresql, custom, etc.) |
+
+### Fallback
+
+Se o Docker daemon não estiver disponível no WSL, o `mcp_manager` opera **em modo in-memory**: os servidores são salvos no banco, mas containers não são criados.
+
+Endpoints (`/api/ai/mcp`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/mcp` | Lista servidores |
+| `POST` | `/mcp` | Cria servidor (com imagem, porta, env vars) |
+| `PUT` | `/mcp/{id}` | Atualiza configuração |
+| `DELETE` | `/mcp/{id}` | Remove do banco e container |
+| `POST` | `/mcp/{id}/restart` | Reinicia o container |
+
+---
+
+## Tarefas Agendadas (Scheduler)
+
+Substitui o Google Calendar por um sistema interno de **jobs periódicos** usando a biblioteca Python `schedule`.
+
+### Jobs padrão
+
+| Job | Intervalo | Descrição |
+|---|---|---|
+| `sla_check` | 5 min | Verifica SLA de todos os tickets abertos |
+| `appointment_reminder` | 30 min | Notifica usuários sobre agendamentos próximos |
+| `cleanup` | 24 h | Remove registros antigos |
+
+### Modelo `ScheduledJob`
+
+Cada job é persistido no banco com tipo, intervalo, última execução e empresa associada. A página **Tarefas Agendadas** (`/calendar` renomeada) permite criar, editar e executar jobs manualmente.
+
+### Notificações
+
+Jobs de SLA e lembretes disparam notificações in-app via `services/notifier.py`:
+
+- **`notify_company(company_id, title, body, link)`** — notifica todos os usuários da empresa
+- **`notify_user(user_id, title, body, link)`** — notifica um usuário específico
+
+As notificações são persistidas na tabela `Notification` e entregues em tempo real via WebSocket.
+
+---
+
 ## Segurança & Contas
 
 - **Cadastro** aberto a qualquer pessoa (sem restrição de admin).
@@ -438,11 +577,20 @@ A página de **Chamados** (`frontend/src/pages/Tickets.tsx`) atualiza em **tempo
 
 ### Central in-app
 
-Além do e-mail e do push do navegador, cada usuário tem um **centro de notificações persistido** no backend. Na criação/atualização de um chamado, é gerada uma notificação **por empresa** (multitenant) com link direto para o ticket (`/tickets/{id}`).
+Cada usuário tem um **centro de notificações persistido** no backend, gerenciado por `services/notifier.py`. As notificações são geradas automaticamente por:
 
-- Ícone de **sino** no navbar com **contador de não lidas**.
-- **Dropdown** com a lista de notificações e ação **"Marcar todas como lidas"**; cada item pode ser marcado como lido (e leva ao link do chamado).
-- **Tempo real via WebSocket**: o backend empurra eventos (`{type:"refresh", resource}`) para os clientes conectados em `/ws?token=<JWT>`. O frontend (React) escuta e re-busca o recurso afetado, **substituindo o polling** da inbox, chamados, agendamentos, notificações e dashboard. Reconexão automática a cada ~3s.
+- Criação/atualização de chamados
+- Violação de SLA (via scheduler)
+- Lembretes de agendamento (via scheduler)
+
+O `notifier.py` expõe duas funções principais:
+
+- **`notify_company(company_id, title, body, link)`** — notifica **todos os usuários** de uma empresa (multitenant).
+- **`notify_user(user_id, title, body, link)`** — notifica um usuário específico.
+
+- Ícone de **sino** no sidebar com **contador de não lidas**.
+- **Dropdown** com a lista de notificações e ação **"Marcar todas como lidas"**; cada item pode ser marcado como lido (e leva ao link do recurso).
+- **Tempo real via WebSocket**: o backend empurra eventos (`{type:"refresh", resource}`) para os clientes conectados em `/ws?token=<JWT>`. O frontend escuta e re-busca o recurso afetado, substituindo o polling. Reconexão automática a cada ~3s.
 
 Endpoints (`routers/notifications.py`):
 
@@ -587,9 +735,12 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 
 | Funcionalidade | Status |
 |---|---|
+| Chat IA (múltiplos provedores) | ✅ Disponível |
+| Agentes de IA configuráveis | ✅ Disponível |
+| Auto-resposta WhatsApp (Groq) | ✅ Disponível |
+| Servidores MCP (Docker) | ✅ Disponível |
 | Respostas Inteligentes | 📋 Planejado |
 | Chatbot | 🔄 Em desenvolvimento |
-| Auto-resposta WhatsApp (Groq) | ✅ Disponível |
 | RAG | 📋 Planejado |
 | Base de Conhecimento | 📋 Planejado |
 | Classificação de Tickets | 📋 Planejado |
@@ -599,11 +750,21 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 
 | Funcionalidade | Status |
 |---|---|
-| Automações | 📋 Planejado |
+| Automações | ✅ Disponível |
 | Workflow Builder | 📋 Planejado |
-| Regras | 📋 Planejado |
+| SLA | ✅ Disponível |
+| Tarefas Agendadas | ✅ Disponível |
 | Macros | ✅ Disponível |
 | Respostas rápidas | ✅ Disponível |
+
+### Infraestrutura
+
+| Funcionalidade | Status |
+|---|---|
+| Docker (MCP containers) | ✅ Disponível |
+| Notificações in-app + WebSocket | ✅ Disponível |
+| Layout responsivo (Sidebar) | ✅ Disponível |
+| Tema escuro/claro | ✅ Disponível |
 
 ### Plataforma (SaaS)
 

@@ -29,10 +29,12 @@ class AgentUpdate(BaseModel):
 
 class MCPCreate(BaseModel):
     name: str
-    serverUrl: str
+    serverUrl: str = ""
     type: str = "custom"
     enabled: bool = True
-    config: dict[str, Any] = {}
+    image: str = ""
+    port: int = 0
+    envVars: dict[str, str] = {}
 
 
 class MCPUpdate(BaseModel):
@@ -40,7 +42,9 @@ class MCPUpdate(BaseModel):
     serverUrl: str | None = None
     type: str | None = None
     enabled: bool | None = None
-    config: dict[str, Any] | None = None
+    image: str | None = None
+    port: int | None = None
+    envVars: dict[str, str] | None = None
 
 
 class AnalyzeRequest(BaseModel):
