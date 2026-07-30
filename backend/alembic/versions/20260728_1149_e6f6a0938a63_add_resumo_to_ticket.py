@@ -20,9 +20,13 @@ def upgrade() -> None:
     conn = op.get_bind()
     insp = sa.inspect(conn)
     tables = insp.get_table_names()
-    for t in ('website_conversations', 'website_messages', 'website_visitors', 'widget_configs'):
+    is_pg = conn.dialect.name == "postgresql"
+    for t in ('website_messages', 'website_conversations', 'website_visitors', 'widget_configs'):
         if t in tables:
-            op.drop_table(t)
+            if is_pg:
+                op.execute(sa.text(f"DROP TABLE IF EXISTS {t} CASCADE"))
+            else:
+                op.drop_table(t)
 
     columns = [c['name'] for c in insp.get_columns('tickets')]
     if 'resumo' not in columns:

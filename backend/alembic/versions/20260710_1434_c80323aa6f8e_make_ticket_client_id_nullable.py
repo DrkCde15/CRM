@@ -19,10 +19,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("tickets") as batch_op:
-        batch_op.alter_column("client_id", existing_type=sa.Integer(), nullable=True)
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("tickets") as batch_op:
+            batch_op.alter_column("client_id", existing_type=sa.Integer(), nullable=True)
+    else:
+        op.alter_column("tickets", "client_id", existing_type=sa.Integer(), nullable=True)
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("tickets") as batch_op:
-        batch_op.alter_column("client_id", existing_type=sa.Integer(), nullable=False)
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("tickets") as batch_op:
+            batch_op.alter_column("client_id", existing_type=sa.Integer(), nullable=False)
+    else:
+        op.alter_column("tickets", "client_id", existing_type=sa.Integer(), nullable=False)

@@ -27,6 +27,7 @@ const aiNav: NavItem[] = [
   { label: 'Mochi AI', path: '/ai', icon: Bot },
   { label: 'Agentes', path: '/ai/agents', icon: Activity },
   { label: 'Servidores MCP', path: '/ai/mcp', icon: Globe },
+  { label: 'Chatbot', path: '/ai/chatbot', icon: MessageSquare },
 ]
 
 const toolsNav: NavItem[] = [

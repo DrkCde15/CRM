@@ -1,3 +1,5 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -28,12 +30,25 @@ def list_webhooks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
+    hooks = (
         db.query(Webhook)
         .filter_by(company_id=current_user.company_id)
         .order_by(Webhook.created_at.desc())
         .all()
     )
+    result = []
+    for h in hooks:
+        d = {
+            "id": h.id,
+            "name": h.name,
+            "url": h.url,
+            "events": h.events,
+            "active": h.active,
+            "secret": h.secret,
+            "createdAt": h.created_at.isoformat() if h.created_at else "",
+        }
+        result.append(d)
+    return result
 
 
 @router.post("")
@@ -47,11 +62,20 @@ def create_webhook(
         name=body.name,
         url=body.url,
         events=body.events,
+        secret=secrets.token_hex(32),
     )
     db.add(hook)
     db.commit()
     db.refresh(hook)
-    return hook
+    return {
+        "id": hook.id,
+        "name": hook.name,
+        "url": hook.url,
+        "events": hook.events,
+        "active": hook.active,
+        "secret": hook.secret,
+        "createdAt": hook.created_at.isoformat() if hook.created_at else "",
+    }
 
 
 @router.put("/{hook_id}")
@@ -78,7 +102,15 @@ def update_webhook(
         hook.active = body.active
     db.commit()
     db.refresh(hook)
-    return hook
+    return {
+        "id": hook.id,
+        "name": hook.name,
+        "url": hook.url,
+        "events": hook.events,
+        "active": hook.active,
+        "secret": hook.secret,
+        "createdAt": hook.created_at.isoformat() if hook.created_at else "",
+    }
 
 
 @router.delete("/{hook_id}")

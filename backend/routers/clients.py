@@ -10,6 +10,7 @@ from core.deps import get_current_user
 from models.models import Client, Conversation, User
 from schemas.schemas import ClientOut, ConversationOut, Paginated
 from services.export import export_response
+from services.webhooks import emit as webhook_emit, EVENT_CLIENT_CREATED
 
 
 class BatchDelete(BaseModel):
@@ -131,6 +132,12 @@ async def import_clients(
                 dados=dados or None,
             )
             db.add(client)
+            db.flush()
+            webhook_emit(EVENT_CLIENT_CREATED, current_user.company_id, {
+                "client_id": client.id,
+                "name": client.name,
+                "phone": client.phone,
+            })
             imported += 1
         except Exception as e:
             errors.append({"linha": int(idx) + 2, "erro": str(e)})

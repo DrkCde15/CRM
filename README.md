@@ -218,7 +218,28 @@ wsl -u root bash -c 'dockerd --iptables=false &'
 
 > O backend usa `docker-py` para gerenciar o ciclo de vida dos containers MCP (pull, run, stop, restart, remove). Configure o servidor MCP na interface com uma imagem Docker e o backend tratará do resto.
 
-### 4. Gateway WhatsApp (opcional — porta 3001)
+### 4. PostgreSQL (opcional)
+
+O Mochi funciona com SQLite (padrão) ou PostgreSQL. Para usar PostgreSQL:
+
+```bash
+# Inicie o container PostgreSQL
+docker run -d --name postgres-crm \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=crm \
+  -p 5432:5432 \
+  postgres:16
+
+# No .env, altere DATABASE_URL:
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/crm
+
+# Rode as migrations
+alembic upgrade head
+```
+
+> As migrations são compatíveis com ambos os bancos. O backend detecta automaticamente o dialeto e ajusta os comandos SQL.
+
+### 5. Gateway WhatsApp (opcional — porta 3001)
 
 ```bash
 cd gateway
@@ -424,7 +445,7 @@ O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, cal
 
 | Integração | Status |
 |---|---|
-| PostgreSQL | 🔄 Em desenvolvimento |
+| PostgreSQL | ✅ Disponível (via Docker) |
 | SQLite | ✅ Disponível (desenvolvimento) |
 | Redis | 📋 Planejado (cache/fila) |
 
@@ -440,7 +461,7 @@ O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, cal
 | Integração | Status |
 |---|---|
 | REST API | ✅ Disponível |
-| Webhooks | 🔄 Em desenvolvimento |
+| Webhooks | ✅ Disponível |
 
 ### Inteligência Artificial
 
@@ -740,7 +761,7 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 | Auto-resposta WhatsApp (Groq) | ✅ Disponível |
 | Servidores MCP (Docker) | ✅ Disponível |
 | Respostas Inteligentes | 📋 Planejado |
-| Chatbot | 🔄 Em desenvolvimento |
+| Chatbot | ✅ Disponível (configurável em /chatbot) |
 | RAG | 📋 Planejado |
 | Base de Conhecimento | 📋 Planejado |
 | Classificação de Tickets | 📋 Planejado |

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Upload, FileText, Trash2, Search, ExternalLink, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '../../../core/components/ui/Card'
 import { Button } from '../../../core/components/ui/Button'
@@ -8,6 +8,7 @@ import { formatDate } from '../../../core/utils/format'
 import { documentsApi } from '../services/api'
 import type { Document } from '../types'
 import { PageHeader } from '../../../core/components/layout/PageHeader'
+import { useToasts } from '../../../store'
 
 const typeIcons: Record<string, string> = { pdf: '📄', docx: '📝', xlsx: '📊', csv: '📋', txt: '📃' }
 
@@ -22,6 +23,8 @@ export default function Documents() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState<number | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { push } = useToasts()
 
   useEffect(() => { loadDocs() }, [])
 
@@ -31,14 +34,22 @@ export default function Documents() {
     finally { setLoading(false) }
   }
 
+  const triggerUpload = () => fileRef.current?.click()
+
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
     try {
       await documentsApi.upload(file)
+      push('success', 'Documento enviado com sucesso')
       await loadDocs()
-    } finally { setUploading(false) }
+    } catch (err: any) {
+      push('error', err?.response?.data?.error || err?.message || 'Erro ao enviar')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   const analyze = async (id: number) => {
@@ -53,13 +64,13 @@ export default function Documents() {
         title="Documentos"
         description="Gerencie documentos, contratos e arquivos."
         actions={
-          <label className="cursor-pointer">
-            <Button loading={uploading}>
+          <>
+            <Button loading={uploading} onClick={triggerUpload}>
               <Upload size={16} />
               {uploading ? 'Enviando...' : 'Upload'}
             </Button>
-            <input type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" onChange={upload} className="hidden" />
-          </label>
+            <input ref={fileRef} type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" onChange={upload} className="hidden" />
+          </>
         }
       />
 
@@ -75,10 +86,7 @@ export default function Documents() {
           title="Nenhum documento"
           description="Faça upload de PDFs, planilhas ou textos para começar"
           action={
-            <label className="cursor-pointer">
-              <Button><Upload size={16} />Upload</Button>
-              <input type="file" accept=".pdf,.docx,.xlsx,.csv,.txt" onChange={upload} className="hidden" />
-            </label>
+            <Button onClick={triggerUpload}><Upload size={16} />Upload</Button>
           }
         />
       ) : (

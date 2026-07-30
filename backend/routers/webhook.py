@@ -6,6 +6,7 @@ from core.database import SessionLocal
 from models.models import Client, Conversation
 from schemas.schemas import WebhookPayload
 from services import llm, realtime, whatsapp
+from services.webhooks import emit as webhook_emit, EVENT_MESSAGE_RECEIVED, EVENT_CLIENT_CREATED
 
 router = APIRouter(prefix="/api", tags=["webhook"])
 
@@ -38,6 +39,10 @@ def _get_or_create_client(db, phone: str) -> Client:
         db.add(client)
         db.commit()
         db.refresh(client)
+        webhook_emit(EVENT_CLIENT_CREATED, client.company_id, {
+            "client_id": client.id,
+            "phone": client.phone,
+        })
     return client
 
 
@@ -77,6 +82,12 @@ async def _process(payload: WebhookPayload) -> None:
         client = _get_or_create_client(db, payload.from_)
         history = _build_history(db, client.id)
         _save(db, client.id, payload.text, type_=payload.type)
+        webhook_emit(EVENT_MESSAGE_RECEIVED, client.company_id, {
+            "client_id": client.id,
+            "phone": payload.from_,
+            "text": payload.text,
+            "type": payload.type,
+        })
         realtime.refresh("inbox", client.company_id)
         realtime.refresh("stats", client.company_id)
 

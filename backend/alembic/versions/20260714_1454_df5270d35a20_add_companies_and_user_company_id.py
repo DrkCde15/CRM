@@ -31,7 +31,10 @@ def upgrade() -> None:
     # ### end Alembic commands ###
 
     bind = op.get_bind()
-    bind.execute(sa.text("INSERT OR IGNORE INTO companies (id, name, created_at) VALUES (1, 'Empresa Padrão', datetime('now'))"))
+    if bind.dialect.name == "sqlite":
+        bind.execute(sa.text("INSERT OR IGNORE INTO companies (id, name, created_at) VALUES (1, 'Empresa Padrão', datetime('now'))"))
+    else:
+        bind.execute(sa.text("INSERT INTO companies (id, name, created_at) VALUES (1, 'Empresa Padrão', NOW()) ON CONFLICT (id) DO NOTHING"))
     bind.execute(sa.text("UPDATE users SET company_id = 1 WHERE company_id IS NULL OR company_id = 0"))
 
 

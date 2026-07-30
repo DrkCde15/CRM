@@ -252,3 +252,15 @@ class InboxItem(BaseModel):
     read: bool = True
     archived: bool = False
 
+
+class ConfigOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    key: str
+    value: str
+    encrypted: bool
+
+
+class ConfigUpdate(BaseModel):
+    value: str
+

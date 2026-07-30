@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -143,22 +143,7 @@ class Webhook(Base):
     name: Mapped[str] = mapped_column(String(255), default="")
     url: Mapped[str] = mapped_column(String(500))
     events: Mapped[str] = mapped_column(Text, default="")  # comma-separated list
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
-
-
-class CalendarConnection(Base):
-    __tablename__ = "calendar_connections"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    user_id: Mapped[int] = mapped_column(Integer)
-    provider: Mapped[str] = mapped_column(String(50))  # google ou outlook
-    email: Mapped[str] = mapped_column(String(255))
-    access_token: Mapped[str] = mapped_column(Text)
-    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    calendar_id: Mapped[str] = mapped_column(String(255), default="primary")
+    secret: Mapped[str] = mapped_column(String(64), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
@@ -322,5 +307,31 @@ class CannedResponse(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC)
     )
+
+
+class AIConversation(Base):
+    __tablename__ = "ai_conversations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(255), default="Nova conversa")
+    agent: Mapped[str] = mapped_column(String(100), default="assistente")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    messages: Mapped[list["AIMessage"]] = relationship(back_populates="conversation", order_by="AIMessage.created_at", cascade="all, delete-orphan")
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("ai_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+    conversation: Mapped["AIConversation"] = relationship(back_populates="messages")
 
 

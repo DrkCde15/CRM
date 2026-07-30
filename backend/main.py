@@ -21,6 +21,7 @@ from routers import (
     canned,
     clients,
     companies,
+    config,
     documents,
     email_channel,
     inbox,
@@ -157,6 +158,7 @@ app.include_router(calendar.router)
 app.include_router(sla.router)
 app.include_router(sso.router)
 app.include_router(companies.router)
+app.include_router(config.router)
 
 
 @app.get("/health")

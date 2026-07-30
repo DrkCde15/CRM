@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from core.deps import get_current_user
@@ -43,7 +43,7 @@ async def list_documents(user=Depends(get_current_user)):
 async def upload_document(file: UploadFile = File(...), user=Depends(get_current_user)):
     ext = os.path.splitext(file.filename or "file.txt")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        return {"error": f"Tipo de arquivo nao suportado: {ext}"}, 400
+        raise HTTPException(400, f"Tipo de arquivo nao suportado: {ext}")
 
     upload_dir = os.path.join(settings.upload_dir or "uploads", str(user.company_id))
     os.makedirs(upload_dir, exist_ok=True)
@@ -54,7 +54,7 @@ async def upload_document(file: UploadFile = File(...), user=Depends(get_current
 
     content = await file.read()
     if len(content) > (settings.max_upload_mb or 15) * 1024 * 1024:
-        return {"error": "Arquivo muito grande"}, 400
+        raise HTTPException(400, "Arquivo muito grande")
 
     with open(file_path, "wb") as f:
         f.write(content)
@@ -97,7 +97,7 @@ async def get_document(doc_id: int, user=Depends(get_current_user)):
     for d in _documents:
         if d["id"] == doc_id and d.get("company_id") == user.company_id:
             return d
-    return {"error": "Documento nao encontrado"}, 404
+    raise HTTPException(404, "Documento nao encontrado")
 
 
 @router.delete("/{doc_id}")
@@ -108,7 +108,7 @@ async def delete_document(doc_id: int, user=Depends(get_current_user)):
                 os.remove(d["path"])
             _documents.pop(i)
             return {"ok": True}
-    return {"error": "Documento nao encontrado"}, 404
+    raise HTTPException(404, "Documento nao encontrado")
 
 
 @router.post("/{doc_id}/analyze")
@@ -120,7 +120,7 @@ async def analyze_document(doc_id: int, user=Depends(get_current_user)):
             d["summary"] = analysis["summary"]
             d["updated_at"] = datetime.now().isoformat()
             return analysis
-    return {"error": "Documento nao encontrado"}, 404
+    raise HTTPException(404, "Documento nao encontrado")
 
 
 @router.post("/{doc_id}/ask")
@@ -137,4 +137,4 @@ async def ask_document(doc_id: int, body: AskRequest, user=Depends(get_current_u
                 return {"question": body.question, "answer": response}
             except Exception as e:
                 return {"question": body.question, "answer": f"Erro ao processar pergunta: {e}"}
-    return {"error": "Documento nao encontrado"}, 404
+    raise HTTPException(404, "Documento nao encontrado")

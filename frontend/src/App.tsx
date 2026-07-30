@@ -18,6 +18,7 @@ import SLAPage from './pages/SLA'
 import Companies from './pages/Companies'
 import Webhooks from './pages/Webhooks'
 import Automations from './pages/Automations'
+import Chatbot from './pages/Chatbot'
 import { useAuth } from './store'
 import { ensureConnected } from './realtime'
 import { PageSpinner } from './core/components/ui/Spinner'
@@ -190,6 +191,14 @@ export default function App() {
         element={
           <Protected>
             <Automations />
+          </Protected>
+        }
+      />
+      <Route
+        path="/ai/chatbot"
+        element={
+          <Protected>
+            <Chatbot />
           </Protected>
         }
       />

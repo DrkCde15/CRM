@@ -2,14 +2,18 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from core.deps import get_current_user
+from core.database import get_db
 from core.config import settings
 from services.llm import chat_completion
 from services.agent_manager import agent_manager
 from services import mcp_manager
+from models.models import AIConversation, AIMessage, User
 
 logger = logging.getLogger("mochi.ai")
 router = APIRouter(prefix="/api/ai", tags=["AI"])
@@ -56,30 +60,70 @@ class SuggestRequest(BaseModel):
     channel: str = "email"
 
 
-_conversations: dict[str, list[dict]] = {}
+def _format_message(msg: AIMessage) -> dict:
+    return {
+        "id": str(msg.id),
+        "role": msg.role,
+        "content": msg.content,
+        "timestamp": msg.created_at.isoformat(),
+    }
+
+
+def _format_conversation(conv: AIConversation) -> dict:
+    return {
+        "id": conv.id,
+        "title": conv.title,
+        "agent": conv.agent,
+        "messages": [_format_message(m) for m in conv.messages],
+        "createdAt": conv.created_at.isoformat(),
+        "updatedAt": conv.updated_at.isoformat(),
+    }
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest, user=Depends(get_current_user)):
+async def chat(req: ChatRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     agent = agent_manager.get_agent(req.agent)
     system_prompt = agent.get("systemPrompt", "") if agent else ""
 
-    conv_id = req.conversation_id or f"conv_{datetime.now().timestamp()}"
-    if conv_id not in _conversations:
-        _conversations[conv_id] = []
+    conv_id = req.conversation_id
+    if not conv_id:
+        conv_id = f"conv_{datetime.now().timestamp()}"
+        conv = AIConversation(id=conv_id, company_id=user.company_id, user_id=user.id, agent=req.agent)
+        db.add(conv)
+    else:
+        conv = db.execute(select(AIConversation).where(
+            AIConversation.id == conv_id,
+            AIConversation.user_id == user.id,
+        )).scalar_one_or_none()
+        if not conv:
+            conv = AIConversation(id=conv_id, company_id=user.company_id, user_id=user.id, agent=req.agent)
+            db.add(conv)
 
-    history = _conversations[conv_id][-10:]
+    history = db.execute(
+        select(AIMessage).where(AIMessage.conversation_id == conv_id).order_by(AIMessage.created_at.desc()).limit(10)
+    ).scalars().all()
+    history = list(reversed(history))
+
     messages = [{"role": "system", "content": system_prompt}] if system_prompt else []
-    messages.extend(history)
+    messages.extend({"role": m.role, "content": m.content} for m in history)
     messages.append({"role": "user", "content": req.message})
+
+    user_msg = AIMessage(conversation_id=conv_id, role="user", content=req.message)
+    db.add(user_msg)
 
     try:
         response = await chat_completion(messages=messages)
-        _conversations[conv_id].append({"role": "user", "content": req.message})
-        _conversations[conv_id].append({"role": "assistant", "content": response})
+        assistant_msg = AIMessage(conversation_id=conv_id, role="assistant", content=response)
+        db.add(assistant_msg)
     except Exception as e:
         logger.error(f"Erro no chat: {e}")
         response = "Desculpe, ocorreu um erro ao processar sua mensagem."
+        assistant_msg = AIMessage(conversation_id=conv_id, role="assistant", content=response)
+        db.add(assistant_msg)
+
+    conv.title = user_msg.content[:50]
+    conv.updated_at = datetime.now()
+    db.commit()
 
     return {
         "response": response,
@@ -89,42 +133,32 @@ async def chat(req: ChatRequest, user=Depends(get_current_user)):
 
 
 @router.get("/conversations")
-async def list_conversations(user=Depends(get_current_user)):
-    return [
-        {
-            "id": cid,
-            "title": msgs[0].get("content", "Nova conversa")[:50] if msgs else "Nova conversa",
-            "messages": msgs,
-            "createdAt": datetime.now().isoformat(),
-            "updatedAt": datetime.now().isoformat(),
-        }
-        for cid, msgs in _conversations.items()
-    ]
+async def list_conversations(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conversations = db.execute(
+        select(AIConversation).where(AIConversation.user_id == user.id).order_by(AIConversation.updated_at.desc())
+    ).scalars().all()
+    return [_format_conversation(c) for c in conversations]
 
 
 @router.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str, user=Depends(get_current_user)):
-    messages = _conversations.get(conv_id, [])
-    return {
-        "id": conv_id,
-        "title": messages[0].get("content", "Conversa")[:50] if messages else "Conversa",
-        "messages": [
-            {
-                "id": str(i),
-                "role": m["role"],
-                "content": m["content"],
-                "timestamp": datetime.now().isoformat(),
-            }
-            for i, m in enumerate(messages)
-        ],
-        "createdAt": datetime.now().isoformat(),
-        "updatedAt": datetime.now().isoformat(),
-    }
+async def get_conversation(conv_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conv = db.execute(
+        select(AIConversation).where(AIConversation.id == conv_id, AIConversation.user_id == user.id)
+    ).scalar_one_or_none()
+    if not conv:
+        raise HTTPException(404, "Conversa nao encontrada")
+    return _format_conversation(conv)
 
 
 @router.delete("/conversations/{conv_id}")
-async def delete_conversation(conv_id: str, user=Depends(get_current_user)):
-    _conversations.pop(conv_id, None)
+async def delete_conversation(conv_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conv = db.execute(
+        select(AIConversation).where(AIConversation.id == conv_id, AIConversation.user_id == user.id)
+    ).scalar_one_or_none()
+    if not conv:
+        raise HTTPException(404, "Conversa nao encontrada")
+    db.delete(conv)
+    db.commit()
     return {"ok": True}
 
 
