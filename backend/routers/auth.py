@@ -61,6 +61,12 @@ def register(body: UserCreate):
     try:
         if _get_user_by_email(db, body.email):
             raise HTTPException(status_code=400, detail="Email already registered")
+        user_count = db.query(User).count()
+        if user_count > 0:
+            raise HTTPException(
+                status_code=403,
+                detail="Cadastro fechado. Peça um convite ao administrador.",
+            )
         if not db.query(Company).filter_by(id=1).first():
             db.add(Company(id=1, name="Empresa Padrão"))
             db.commit()
@@ -72,7 +78,7 @@ def register(body: UserCreate):
             email=body.email,
             name=body.name,
             hashed_password=hash_password(body.password),
-            role=body.role,
+            role="admin",
             company_id=1,
         )
         db.add(user)

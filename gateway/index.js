@@ -12,7 +12,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const qrcode = require('qrcode-terminal');
-const { readFileSync, existsSync } = require('fs');
+const { readFileSync, existsSync, rmSync } = require('fs');
 const path = require('path');
 const pino = require('pino');
 
@@ -24,7 +24,10 @@ const logger = pino({
 });
 
 const PORT = parseInt(process.env.PORT) || 3001;
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:8000/webhook';
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:8000/api/webhook';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
+const GATEWAY_API_KEY = process.env.GATEWAY_API_KEY || '';
+const TENANT_ID = process.env.TENANT_ID ? parseInt(process.env.TENANT_ID) : null;
 
 let sock = null;
 let isConnecting = false;
@@ -37,6 +40,17 @@ function isValidJid(jid) {
 const app = express();
 app.use(express.json());
 
+function requireApiKey(req, res, next) {
+  if (!GATEWAY_API_KEY) {
+    return res.status(503).json({ error: 'GATEWAY_API_KEY não configurada no .env do gateway' });
+  }
+  const key = req.header('X-API-Key');
+  if (!key || key !== GATEWAY_API_KEY) {
+    return res.status(401).json({ error: 'API key inválida' });
+  }
+  next();
+}
+
 const sendLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -44,9 +58,9 @@ const sendLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.use('/send', sendLimiter);
-app.use('/send-buttons', sendLimiter);
-app.use('/send-image', sendLimiter);
+app.use('/send', requireApiKey, sendLimiter);
+app.use('/send-buttons', requireApiKey, sendLimiter);
+app.use('/send-image', requireApiKey, sendLimiter);
 
 app.get('/health', (req, res) => {
   res.json({ connected: sock?.user ? true : false, user: sock?.user?.id || null });
@@ -162,8 +176,15 @@ async function startBot() {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = lastDisconnect?.error?.message || 'Unknown';
         if (statusCode === DisconnectReason.loggedOut) {
-          logger.error('logged_out_delete_auth_info');
+          logger.error('logged_out_deleting_auth_info');
           sock = null;
+          try {
+            rmSync(path.join(__dirname, 'auth_info'), { recursive: true, force: true });
+          } catch (err) {
+            logger.warn({ error: err.message }, 'auth_info_delete_failed');
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+          startBot();
         } else {
           logger.warn({ reason, statusCode }, 'disconnected_reconnecting');
           await new Promise((r) => setTimeout(r, 5000));
@@ -183,7 +204,10 @@ async function startBot() {
         const delays = [1000, 5000, 15000];
         for (let attempt = 0; attempt <= delays.length; attempt++) {
           try {
-            await axios.post(WEBHOOK_URL, item.payload, { timeout: 30000 });
+            await axios.post(WEBHOOK_URL, item.payload, {
+              timeout: 30000,
+              headers: WEBHOOK_SECRET ? { 'X-Webhook-Secret': WEBHOOK_SECRET } : {},
+            });
             logger.debug({ from: item.payload.from, attempt }, 'webhook_sent');
             break;
           } catch (err) {
@@ -246,6 +270,7 @@ async function startBot() {
             from, text, type: msgType,
             image: imageBase64, audio: audioBase64, mimetype: audioMimetype,
             timestamp: msg.messageTimestamp, msgId: msg.key.id,
+            tenant_id: TENANT_ID,
           },
         });
         processWebhookQueue();

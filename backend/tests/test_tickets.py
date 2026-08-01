@@ -1,13 +1,13 @@
 def test_create_ticket_notifies_without_smtp(client):
     client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={"email": "admin@crm.com", "name": "A", "password": "Secret123", "role": "admin"},
     )
-    r = client.post("/auth/login", data={"username": "admin@crm.com", "password": "Secret123"})
+    r = client.post("/api/auth/login", data={"username": "admin@crm.com", "password": "Secret123"})
     token = r.json()["access_token"]
 
     r = client.post(
-        "/tickets",
+        "/api/tickets",
         json={"titulo": "Problema X", "descricao": "Descrição", "tipo": "chamado"},
         headers={"Authorization": f"Bearer {token}"},
     )

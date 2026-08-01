@@ -17,7 +17,6 @@ class UserCreate(BaseModel):
     email: EmailStr
     name: str = ""
     password: str
-    role: str = "agent"
 
 
 class UserOut(BaseModel):

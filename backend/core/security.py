@@ -1,4 +1,5 @@
 import bcrypt
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 
 from core.config import settings
@@ -27,7 +28,8 @@ def validate_password(password: str) -> None:
 
 
 def create_access_token(subject: str | int) -> str:
-    payload = {"sub": str(subject)}
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {"sub": str(subject), "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 

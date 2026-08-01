@@ -192,9 +192,6 @@ async def update_mcp(client_id: str, body: MCPUpdate, user=Depends(get_current_u
     result = mcp_manager.update_client(client_id, updates)
     if result is None:
         return {"error": "Cliente nao encontrado"}, 404
-    result = mcp_manager.update_client(client_id, updates)
-    if result is None:
-        return {"error": "Cliente nao encontrado"}, 404
     return result
 
 

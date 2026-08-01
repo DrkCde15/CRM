@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -67,12 +68,24 @@ def sso_login(
     db: Session = Depends(get_db),
 ):
     """Endpoint para login via SSO. O provedor externo redireciona para cá com email + token."""
-    # Validação simplificada: verifica se o usuário existe
     user = db.query(User).filter_by(email=email).first()
     if not user:
         raise HTTPException(status_code=401, detail="Usuário não encontrado")
     company = db.query(Company).filter_by(id=user.company_id).first()
-    if not company or not company.sso_provider:
+    if not company or not company.sso_provider or not company.sso_client_secret:
         raise HTTPException(status_code=401, detail="SSO não configurado")
-    access_token = create_access_token(subject=user.email)
+    try:
+        payload = jwt.decode(
+            token,
+            company.sso_client_secret,
+            algorithms=["HS256"],
+            audience=company.sso_client_id,
+            issuer=company.sso_issuer,
+            options={"require_exp": True},
+        )
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
+    if payload.get("email") != email:
+        raise HTTPException(status_code=401, detail="Email não confere com o token")
+    access_token = create_access_token(subject=user.id)
     return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "nome": user.name, "role": user.role}}

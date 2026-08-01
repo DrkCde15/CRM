@@ -13,21 +13,21 @@ def _latest_token() -> str:
 
 def test_forgot_and_reset_password(client):
     client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={"email": "reset@crm.com", "name": "R", "password": "Secret123", "role": "admin"},
     )
 
-    r = client.post("/auth/forgot-password", json={"email": "reset@crm.com"})
+    r = client.post("/api/auth/forgot-password", json={"email": "reset@crm.com"})
     assert r.status_code == 200
 
     token = _latest_token()
     assert token
 
-    r = client.post("/auth/reset-password", json={"token": token, "password": "NewSecret123"})
+    r = client.post("/api/auth/reset-password", json={"token": token, "password": "NewSecret123"})
     assert r.status_code == 200
 
-    r = client.post("/auth/login", data={"username": "reset@crm.com", "password": "NewSecret123"})
+    r = client.post("/api/auth/login", data={"username": "reset@crm.com", "password": "NewSecret123"})
     assert r.status_code == 200
 
-    r = client.post("/auth/reset-password", json={"token": token, "password": "Other456"})
+    r = client.post("/api/auth/reset-password", json={"token": token, "password": "Other456"})
     assert r.status_code == 400

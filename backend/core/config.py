@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     gateway_url: str = "http://localhost:3001"
+    gateway_api_key: str = ""
+    webhook_secret: str = ""
     whatsapp_webhook_url: str = "http://localhost:8000/api/webhook"
     auto_start_gateway: bool = False
     gateway_path: str = "../gateway"
@@ -99,6 +101,12 @@ class Settings(BaseSettings):
             issues.append("DATABASE_URL não definido.")
         if not self.allowed_origins:
             issues.append("ALLOWED_ORIGINS vazio — defina as origens do frontend.")
+        if not self.webhook_secret:
+            issues.append(
+                "WEBHOOK_SECRET não definido — o gateway não conseguirá autenticar os webhooks."
+            )
+        if not self.gateway_api_key:
+            issues.append("GATEWAY_API_KEY não definido — o backend não conseguirá autenticar no gateway.")
         provider = (self.llm_provider or "groq").lower()
         if provider == "groq" and not self.api_groq:
             issues.append("LLM_PROVIDER=groq sem API_GROQ: respostas de IA indisponíveis.")
