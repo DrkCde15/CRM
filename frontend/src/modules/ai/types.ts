@@ -19,11 +19,10 @@ export interface MCPClient {
   id: string
   name: string
   serverUrl: string
-  image: string
-  containerName: string
-  containerId: string
-  type: 'github' | 'gitlab' | 'postgresql' | 'mysql' | 'redis' | 'google_drive' | 'gmail' | 'outlook' | 'notion' | 'jira' | 'custom'
-  port: number
+  workflowId: string
+  n8nBaseUrl: string
+  n8nApiKey: string
+  type: 'github' | 'gitlab' | 'postgresql' | 'mysql' | 'redis' | 'google_drive' | 'gmail' | 'outlook' | 'notion' | 'jira' | 'n8n' | 'custom'
   status: 'running' | 'stopped' | 'error'
   enabled: boolean
   envVars: Record<string, string>

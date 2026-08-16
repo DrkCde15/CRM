@@ -12,7 +12,7 @@ import { PageHeader } from '../../../core/components/layout/PageHeader'
 const mcpIcons: Record<string, string> = {
   github: '🐙', gitlab: '🦊', postgresql: '🐘', mysql: '🐬',
   redis: '🔴', google_drive: '📁', gmail: '📧', outlook: '📨',
-  notion: '📝', jira: '🔧', custom: '🔌',
+  notion: '📝', jira: '🔧', n8n: '⚡', custom: '🔌',
 }
 
 const statusColor: Record<string, string> = {
@@ -62,7 +62,7 @@ export default function MCPConfig() {
     <div className="max-w-4xl mx-auto p-6">
       <PageHeader
         title="Servidores MCP"
-        description="Gerencie servidores de contexto via Docker ou URL externa."
+        description="Gerencie servidores MCP hospedados em workflows do n8n (ou URL externa)."
         actions={
           <Button onClick={() => { setEditId(null); setShowNew(true) }}>
             <Plus size={16} />
@@ -88,10 +88,9 @@ export default function MCPConfig() {
                     </Badge>
                   </div>
                   <div className="text-xs text-muted mt-0.5 truncate">
-                    {client.image && `📦 ${client.image}`}
-                    {client.image && client.serverUrl && ' · '}
+                    {client.workflowId && `🔧 ${client.workflowId}`}
+                    {client.workflowId && client.serverUrl && ' · '}
                     {client.serverUrl && `🔗 ${client.serverUrl}`}
-                    {client.containerName && ` · 🐳 ${client.containerName}`}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -99,7 +98,7 @@ export default function MCPConfig() {
                     <button onClick={() => doRestart(client.id)}
                       disabled={busy === client.id}
                       className="p-2 rounded-lg text-muted hover:bg-surface dark:hover:bg-slate-700 disabled:opacity-40"
-                      title="Reiniciar container">
+                      title="Reiniciar workflow">
                       <RotateCcw size={15} />
                     </button>
                   )}
@@ -147,8 +146,9 @@ export default function MCPConfig() {
 function MCPForm({ initial, onDone, onCancel }: { initial: MCPClient | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(initial?.name || '')
   const [type, setType] = useState(initial?.type || 'custom')
-  const [image, setImage] = useState(initial?.image || '')
-  const [port, setPort] = useState(initial?.port || 3000)
+  const [workflowId, setWorkflowId] = useState(initial?.workflowId || '')
+  const [n8nBaseUrl, setN8nBaseUrl] = useState(initial?.n8nBaseUrl || '')
+  const [n8nApiKey, setN8nApiKey] = useState(initial?.n8nApiKey || '')
   const [serverUrl, setServerUrl] = useState(initial?.serverUrl || '')
   const [envKeys, setEnvKeys] = useState<string[]>(
     initial ? Object.keys(initial.envVars || {}) : []
@@ -178,7 +178,7 @@ function MCPForm({ initial, onDone, onCancel }: { initial: MCPClient | null; onD
     setSaving(true)
     setError('')
     try {
-      const body: any = { name, type, image, port, serverUrl, envVars: envVals }
+      const body: any = { name, type, workflowId, n8nBaseUrl, n8nApiKey, serverUrl, envVars: envVals }
       if (initial) {
         await aiApi.updateMCPClient(initial.id, body)
       } else {
@@ -204,18 +204,22 @@ function MCPForm({ initial, onDone, onCancel }: { initial: MCPClient | null; onD
           <option value="postgresql">PostgreSQL</option>
           <option value="mysql">MySQL</option>
           <option value="redis">Redis</option>
+          <option value="n8n">n8n</option>
           <option value="custom">Custom</option>
         </select>
       </div>
 
-      <Input label="Imagem Docker (opcional)" value={image} onChange={(e) => setImage(e.target.value)}
-        placeholder="ex: ghcr.io/my-org/mcp-server:latest" />
+      <Input label="ID do Workflow n8n (opcional)" value={workflowId} onChange={(e) => setWorkflowId(e.target.value)}
+        placeholder="ex: abc123def456" />
 
-      <Input label="Porta" type="number" value={String(port)} onChange={(e) => setPort(parseInt(e.target.value) || 0)}
-        placeholder="3000" />
+      <Input label="URL da instância n8n (opcional)" value={n8nBaseUrl} onChange={(e) => setN8nBaseUrl(e.target.value)}
+        placeholder="https://meu-n8n.exemplo.com" />
 
-      <Input label="URL do Servidor (opcional se usar Docker)" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)}
-        placeholder="https://meu-servidor-mcp.com" />
+      <Input label="API Key do n8n (opcional)" type="password" value={n8nApiKey} onChange={(e) => setN8nApiKey(e.target.value)}
+        placeholder="••••••••" />
+
+      <Input label="URL do Servidor MCP (opcional)" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)}
+        placeholder="https://meu-n8n.exemplo.com/mcp/abc123" />
 
       <div>
         <div className="flex items-center justify-between mb-2">

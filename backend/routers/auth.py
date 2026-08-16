@@ -17,6 +17,7 @@ from schemas.schemas import (
     Token,
     UserCreate,
     UserOut,
+    ProfileUpdate,
 )
 from services import email
 
@@ -110,6 +111,38 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.put("/profile", response_model=UserOut)
+def update_profile(body: ProfileUpdate, user: User = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        me = db.get(User, user.id)
+        if not me:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
+        if body.name is not None:
+            me.name = body.name
+
+        if body.email is not None and body.email != me.email:
+            if _get_user_by_email(db, body.email):
+                raise HTTPException(status_code=400, detail="Email já cadastrado")
+            me.email = body.email
+
+        if body.new_password:
+            if not body.current_password or not verify_password(body.current_password, me.hashed_password):
+                raise HTTPException(status_code=400, detail="Senha atual incorreta")
+            try:
+                validate_password(body.new_password)
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e)) from None
+            me.hashed_password = hash_password(body.new_password)
+
+        db.commit()
+        db.refresh(me)
+        return me
+    finally:
+        db.close()
 
 
 @router.get("/users", response_model=list[UserOut])

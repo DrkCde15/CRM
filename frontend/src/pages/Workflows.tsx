@@ -1,44 +1,55 @@
 import { useEffect, useState } from 'react'
 import { workflowsApi } from '../api'
+import { ApiError } from '../api'
 import { useToasts } from '../store'
 import { PageHeader } from '../core/components/layout/PageHeader'
 
 interface Workflow {
-  id: number
+  id?: number
   name: string
   event: string
   conditions: Record<string, unknown> | null
-  actions: Record<string, unknown> | unknown[]
+  actions: Record<string, unknown>[] | Record<string, unknown>
   active: boolean
-  created_at: string | null
+  created_at?: string | null
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  'ticket.created': 'Chamado criado',
-  'ticket.updated': 'Chamado atualizado',
-  'ticket.closed': 'Chamado fechado',
-  'message.received': 'Mensagem recebida',
-}
-
-const EVENTS = Object.keys(EVENT_LABELS)
-
-const defaultActions: Record<string, { type: string; value: string }[]> = {
-  'change_status': [{ type: 'change_status', value: 'andamento' }],
+interface WorkflowSchema {
+  events: { value: string; label: string }[]
+  conditionFields: { value: string; label: string; type: string }[]
+  operators: { value: string; label: string }[]
+  actionTypes: { value: string; label: string; params: { key: string; label: string; type: string }[] }[]
 }
 
 export default function WorkflowsPage() {
   const [list, setList] = useState<Workflow[]>([])
-  const [editing, setEditing] = useState<Partial<Workflow> | null>(null)
+  const [editing, setEditing] = useState<Workflow | null>(null)
+  const [schema, setSchema] = useState<WorkflowSchema | null>(null)
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const { push } = useToasts()
 
   const load = async () => {
     try {
       setList(await workflowsApi.list())
-    } catch {
-      push('error', 'Erro ao carregar workflows')
+    } catch (e) {
+      push('error', e instanceof ApiError ? e.message : 'Erro ao carregar workflows')
     }
   }
-  useEffect(() => { load() }, [])
+
+  const loadSchema = async () => {
+    try {
+      setSchema(await workflowsApi.schema())
+    } catch {
+      setSchema({
+        events: [{ value: 'ticket.created', label: 'Chamado criado' }],
+        conditionFields: [{ value: 'tipo', label: 'Tipo', type: 'text' }],
+        operators: [{ value: 'equals', label: '=' }],
+        actionTypes: [{ value: 'change_status', label: 'Alterar status', params: [{ key: 'value', label: 'Valor', type: 'text' }] }],
+      })
+    }
+  }
+
+  useEffect(() => { load(); loadSchema() }, [])
 
   const save = async () => {
     if (!editing) return
@@ -46,13 +57,13 @@ export default function WorkflowsPage() {
       if (editing.id) {
         await workflowsApi.update(editing.id, editing)
       } else {
-        await workflowsApi.create(editing as { name: string; event: string; actions: Record<string, unknown> | unknown[] })
+        await workflowsApi.create(editing)
       }
       setEditing(null)
       await load()
       push('success', editing.id ? 'Workflow atualizado' : 'Workflow criado')
-    } catch {
-      push('error', 'Erro ao salvar workflow')
+    } catch (e) {
+      push('error', e instanceof ApiError ? e.message : 'Erro ao salvar workflow')
     }
   }
 
@@ -62,45 +73,48 @@ export default function WorkflowsPage() {
       await workflowsApi.remove(id)
       await load()
       push('success', 'Workflow excluído')
-    } catch {
-      push('error', 'Erro ao excluir workflow')
+    } catch (e) {
+      push('error', e instanceof ApiError ? e.message : 'Erro ao excluir workflow')
     }
   }
 
   const toggleActive = async (wf: Workflow) => {
+    if (wf.id == null || togglingId === wf.id) return
+    const id = wf.id
+    const prev = wf.active
+    const nextVal = !prev
+
+    // Atualização otimista: feedback visual imediato.
+    setTogglingId(id)
+    setList((prevList) => prevList.map((x) => (x.id === id ? { ...x, active: nextVal } : x)))
+
     try {
-      await workflowsApi.update(wf.id, { active: !wf.active })
-      await load()
-    } catch {
-      push('error', 'Erro ao alterar status')
+      await workflowsApi.update(id, { active: nextVal })
+    } catch (e) {
+      // Reverte o estado local em caso de erro na API.
+      setList((prevList) => prevList.map((x) => (x.id === id ? { ...x, active: prev } : x)))
+      push('error', e instanceof ApiError ? e.message : 'Erro ao alterar status')
+    } finally {
+      setTogglingId(null)
     }
   }
 
-  if (!list.length && !editing) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <h1 className="text-lg font-semibold text-ink">Workflows</h1>
-          <button
-            onClick={() => setEditing({ name: '', event: 'ticket.created', conditions: null, actions: [{ type: 'change_status', value: 'andamento' }], active: true })}
-            className="ml-auto px-3 py-1.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700"
-          >
-            Novo workflow
-          </button>
-        </div>
-        <p className="text-sm text-muted">Nenhum workflow cadastrado. Crie regras automáticas para chamados e mensagens.</p>
-      </div>
-    )
-  }
+  const newWorkflow = (): Workflow => ({
+    name: '',
+    event: schema?.events[0]?.value || 'ticket.created',
+    conditions: { field: '', op: 'equals', value: '' },
+    actions: [{ type: 'change_status', value: 'andamento' }],
+    active: true,
+  })
 
   return (
     <div className="max-w-4xl mx-auto p-6">
       <PageHeader
-        title="Workflows"
-        description="Automatize processos e ações com fluxos inteligentes."
+        title="Workflow Builder"
+        description="Automatize processos: escolha um evento, condições e ações."
         actions={
           <button
-            onClick={() => setEditing({ name: '', event: 'ticket.created', conditions: null, actions: [{ type: 'change_status', value: 'andamento' }], active: true })}
+            onClick={() => setEditing(newWorkflow())}
             className="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700"
           >
             Novo workflow
@@ -108,42 +122,38 @@ export default function WorkflowsPage() {
         }
       />
 
+      {list.length === 0 && !editing && (
+        <p className="text-sm text-muted">Nenhum workflow cadastrado. Crie regras automáticas para chamados e mensagens.</p>
+      )}
+
       <div className="grid gap-3">
         {list.map((wf) => (
-          <div
-            key={wf.id}
-            className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700"
-          >
+          <div key={wf.id} className="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => toggleActive(wf)}
-                className={`w-10 h-6 rounded-full transition-colors ${
-                  wf.active ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'
-                } relative`}
+                disabled={togglingId === wf.id}
+                aria-label={wf.active ? 'Desativar workflow' : 'Ativar workflow'}
+                aria-checked={wf.active}
+                role="switch"
+                className={`w-10 h-6 rounded-full transition-colors relative shrink-0 ${wf.active ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'} ${togglingId === wf.id ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
               >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                    wf.active ? 'translate-x-[18px]' : 'translate-x-0.5'
-                  }`}
-                />
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${wf.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
               </button>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-ink truncate">{wf.name}</div>
                 <div className="text-xs text-muted">
-                  {EVENT_LABELS[wf.event] || wf.event}
+                  {schema?.events.find((e) => e.value === wf.event)?.label || wf.event}
+                  {' · '}
+                  {Array.isArray(wf.actions) ? wf.actions.length : 1} ação(ões)
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setEditing(wf)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-700/20"
-                >
+                <button onClick={() => setEditing(wf)} className="px-3 py-1.5 rounded-xl text-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-700/20">
                   Editar
                 </button>
-                <button
-                  onClick={() => remove(wf.id)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-700/20"
-                >
+                <button onClick={() => remove(wf.id!)} className="px-3 py-1.5 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-700/20">
                   Excluir
                 </button>
               </div>
@@ -152,9 +162,10 @@ export default function WorkflowsPage() {
         ))}
       </div>
 
-      {editing && (
+      {editing && schema && (
         <WorkflowEditor
           initial={editing}
+          schema={schema}
           onSave={save}
           onClose={() => setEditing(null)}
           onChange={(patch) => setEditing((e) => (e ? { ...e, ...patch } : e))}
@@ -166,148 +177,133 @@ export default function WorkflowsPage() {
 
 function WorkflowEditor({
   initial,
+  schema,
   onSave,
   onClose,
   onChange,
 }: {
-  initial: Partial<Workflow>
+  initial: Workflow
+  schema: WorkflowSchema
   onSave: () => void
   onClose: () => void
   onChange: (p: Partial<Workflow>) => void
 }) {
-  const actionsArr = Array.isArray(initial.actions) ? initial.actions : [initial.actions]
+  const actionsArr = (Array.isArray(initial.actions) ? initial.actions : initial.actions ? [initial.actions] : []) as Record<string, any>[]
+  const cond = (initial.conditions || {}) as Record<string, any>
+
+  const setAction = (i: number, patch: Record<string, unknown>) => {
+    const next = actionsArr.map((a, idx) => (idx === i ? { ...a, ...patch } : a))
+    onChange({ actions: next })
+  }
+
+  const addAction = () => {
+    const first = schema.actionTypes[0]?.value || 'change_status'
+    onChange({ actions: [...actionsArr, { type: first }] })
+  }
+
+  const removeAction = (i: number) => {
+    onChange({ actions: actionsArr.filter((_, idx) => idx !== i) })
+  }
+
+  const setCond = (patch: Record<string, unknown>) => onChange({ conditions: { ...cond, ...patch } })
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40" onClick={onClose}>
-      <div
-        className="w-[520px] max-w-[92vw] bg-white rounded-2xl shadow-xl p-5 dark:bg-slate-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-semibold text-ink mb-4">
-          {initial.id ? 'Editar workflow' : 'Novo workflow'}
-        </h2>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-[560px] max-w-[94vw] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-5 dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-ink dark:text-slate-100 mb-4">{initial.id ? 'Editar workflow' : 'Novo workflow'}</h2>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
             <label className="text-xs text-muted block mb-1">Nome</label>
             <input
-              value={initial.name || ''}
+              value={initial.name}
               onChange={(e) => onChange({ name: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
               placeholder="Ex: Chamado WhatsApp → andamento"
             />
           </div>
 
-          <div>
-            <label className="text-xs text-muted block mb-1">Evento</label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted">Quando</span>
             <select
-              value={initial.event || 'ticket.created'}
+              value={initial.event}
               onChange={(e) => onChange({ event: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600"
+              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
             >
-              {EVENTS.map((ev) => (
-                <option key={ev} value={ev}>{EVENT_LABELS[ev]}</option>
-              ))}
+              {schema.events.map((ev) => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
             </select>
           </div>
 
-          <div>
-            <label className="text-xs text-muted block mb-1">
-              Condições <span className="text-muted/60">(opcional)</span>
-            </label>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-ink dark:text-slate-100">Condições (opcional)</span>
+            </div>
             <div className="grid grid-cols-3 gap-2">
-              <select
-                value={(initial.conditions as any)?.field || ''}
-                onChange={(e) =>
-                  onChange({ conditions: { ...(initial.conditions as any || {}), field: e.target.value } })
-                }
-                className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-              >
+              <select value={cond.field || ''} onChange={(e) => setCond({ field: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
                 <option value="">Campo</option>
-                <option value="tipo">Tipo</option>
-                <option value="status">Status</option>
+                {schema.conditionFields.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>
-              <select
-                value={(initial.conditions as any)?.op || 'eq'}
-                onChange={(e) =>
-                  onChange({ conditions: { ...(initial.conditions as any || {}), op: e.target.value } })
-                }
-                className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-              >
-                <option value="eq">=</option>
-                <option value="neq">≠</option>
-                <option value="contains">contém</option>
+              <select value={cond.op || 'equals'} onChange={(e) => setCond({ op: e.target.value })} className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
+                {schema.operators.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              <input
-                value={(initial.conditions as any)?.value || ''}
-                onChange={(e) =>
-                  onChange({ conditions: { ...(initial.conditions as any || {}), value: e.target.value } })
-                }
-                placeholder="Valor"
-                className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-              />
+              <input value={cond.value || ''} onChange={(e) => setCond({ value: e.target.value })} placeholder="Valor" className="px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100" />
             </div>
           </div>
 
-          <div>
-            <label className="text-xs text-muted block mb-1">Ações</label>
-            {actionsArr.map((act: any, i: number) => (
-              <div key={i} className="flex gap-2 items-center mb-2">
-                <select
-                  value={act.type}
-                  onChange={(e) => {
-                    const newActions = [...actionsArr]
-                    newActions[i] = { ...newActions[i] as any, type: e.target.value, value: 'andamento' }
-                    onChange({ actions: newActions })
-                  }}
-                  className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-                >
-                  <option value="change_status">Alterar status</option>
-                  <option value="webhook">Disparar webhook</option>
-                </select>
-                {act.type === 'change_status' && (
-                  <select
-                    value={act.value}
-                    onChange={(e) => {
-                      const newActions = [...actionsArr]
-                      newActions[i] = { ...newActions[i] as any, value: e.target.value }
-                      onChange({ actions: newActions })
-                    }}
-                    className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-                  >
-                    <option value="aberto">Aberto</option>
-                    <option value="andamento">Em andamento</option>
-                    <option value="resolvido">Resolvido</option>
-                    <option value="fechado">Fechado</option>
-                  </select>
-                )}
-                {act.type === 'webhook' && (
-                  <input
-                    value={act.value || ''}
-                    onChange={(e) => {
-                      const newActions = [...actionsArr]
-                      newActions[i] = { ...newActions[i] as any, value: e.target.value }
-                      onChange({ actions: newActions })
-                    }}
-                    placeholder="Nome do evento"
-                    className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600"
-                  />
-                )}
-              </div>
-            ))}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-ink dark:text-slate-100">Ações</span>
+              <button onClick={addAction} className="text-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-700/20 px-2 py-1 rounded-lg">
+                + Adicionar ação
+              </button>
+            </div>
+            <div className="space-y-2">
+              {actionsArr.map((act, i) => {
+                const typeDef = schema.actionTypes.find((t) => t.value === act.type) || schema.actionTypes[0]
+                return (
+                  <div key={i} className="rounded-lg border border-slate-100 dark:border-slate-700 p-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <select
+                        value={act.type}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const def = schema.actionTypes.find((t) => t.value === val)
+                          const base: Record<string, unknown> = { type: val }
+                          if (def) {
+                            for (const p of def.params) base[p.key] = ''
+                          }
+                          setAction(i, base)
+                        }}
+                        className="flex-1 px-2 py-1.5 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                      >
+                        {schema.actionTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                      <button onClick={() => removeAction(i)} className="text-xs text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-700/20">
+                        Remover
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(typeDef?.params || []).map((p) => (
+                        <input
+                          key={p.key}
+                          value={act[p.key] || ''}
+                          onChange={(e) => setAction(i, { [p.key]: e.target.value })}
+                          placeholder={p.label}
+                          className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              {actionsArr.length === 0 && <p className="text-xs text-muted">Nenhuma ação. Adicione ao menos uma.</p>}
+            </div>
           </div>
         </div>
 
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-muted">
-            Cancelar
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium"
-          >
-            Salvar
-          </button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-muted">Cancelar</button>
+          <button onClick={onSave} className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium">Salvar</button>
         </div>
       </div>
     </div>

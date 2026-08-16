@@ -29,6 +29,13 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
+class ProfileUpdate(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -109,6 +116,10 @@ class TicketOut(BaseModel):
     status: str
     taky_task_id: int | None
     resumo: str | None = None
+    categoria: str | None = None
+    prioridade: str | None = None
+    sentimento: str | None = None
+    classified_at: datetime | None = None
     created_at: datetime
 
 

@@ -19,6 +19,9 @@ import Companies from './pages/Companies'
 import Webhooks from './pages/Webhooks'
 import Automations from './pages/Automations'
 import Chatbot from './pages/Chatbot'
+import Plugins from './pages/Plugins'
+import Logs from './pages/Logs'
+import Profile from './pages/Profile'
 import { useAuth } from './store'
 import { ensureConnected } from './realtime'
 import { PageSpinner } from './core/components/ui/Spinner'
@@ -44,10 +47,14 @@ function LazyPage({ component: Component }: { component: React.LazyExoticCompone
 
 export default function App() {
   const token = useAuth((s) => s.token)
+  const loadUser = useAuth((s) => s.loadUser)
 
   useEffect(() => {
-    if (token) ensureConnected()
-  }, [token])
+    if (token) {
+      ensureConnected()
+      loadUser()
+    }
+  }, [token, loadUser])
 
   return (
     <Routes>
@@ -191,6 +198,30 @@ export default function App() {
         element={
           <Protected>
             <Automations />
+          </Protected>
+        }
+      />
+      <Route
+        path="/plugins"
+        element={
+          <Protected>
+            <Plugins />
+          </Protected>
+        }
+      />
+      <Route
+        path="/logs"
+        element={
+          <Protected>
+            <Logs />
+          </Protected>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <Protected>
+            <Profile />
           </Protected>
         }
       />

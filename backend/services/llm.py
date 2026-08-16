@@ -210,7 +210,10 @@ async def _reply_gemini(cfg: dict, messages: list[dict], tries: int) -> str:
 CLASSIFY_PROMPT = (
     "Classifique a mensagem a seguir de um cliente de uma empresa de desenvolvimento de software. "
     "Responda APENAS com um JSON no formato: "
-    '{"intent": "suporte|orcamento|duvida|cancelamento|outro", "priority": "baixa|media|alta", "summary": "breve resumo (máx 60 caracteres)"}. '
+    '{"intent": "suporte|orcamento|duvida|cancelamento|outro", '
+    '"priority": "baixa|media|alta", '
+    '"sentiment": "positivo|neutro|negativo", '
+    '"summary": "breve resumo (máx 60 caracteres)"}. '
     "NÃO inclua markdown, explicações ou texto extra."
 )
 
@@ -218,11 +221,11 @@ CLASSIFY_PROMPT = (
 async def classify_message(message_text: str) -> dict:
     """Classifica uma mensagem usando a LLM configurada.
 
-    Retorna um dicionário com intent, priority e summary.
+    Retorna um dicionário com intent, priority, sentiment e summary.
     """
     cfg = _provider_cfg()
     if not llm_configured():
-        return {"intent": "outro", "priority": "media", "summary": ""}
+        return {"intent": "outro", "priority": "media", "sentiment": "neutro", "summary": ""}
 
     messages = [
         {"role": "system", "content": CLASSIFY_PROMPT},
@@ -236,10 +239,57 @@ async def classify_message(message_text: str) -> dict:
         import re
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
-            return json.loads(match.group())
-        return {"intent": "outro", "priority": "media", "summary": ""}
+            data = json.loads(match.group())
+            return {
+                "intent": data.get("intent", "outro"),
+                "priority": data.get("priority", "media"),
+                "sentiment": data.get("sentiment", "neutro"),
+                "summary": data.get("summary", ""),
+            }
+        return {"intent": "outro", "priority": "media", "sentiment": "neutro", "summary": ""}
     except Exception:
-        return {"intent": "outro", "priority": "media", "summary": ""}
+        return {"intent": "outro", "priority": "media", "sentiment": "neutro", "summary": ""}
+
+
+REPLY_PROMPT = (
+    "Você é um agente de suporte de uma empresa de desenvolvimento de software (sites, web apps, "
+    "apps móveis, automações, APIs e integrações). Redija uma resposta profissional, empática e "
+    "direta para o cliente, em português (pt-BR), adequada para canais como e-mail ou WhatsApp. "
+    "Responda APENAS com um JSON no formato: "
+    '{"reply": "texto da resposta principal", "alternatives": ["alternativa 1", "alternativa 2"]}. '
+    "As alternativas devem ser variações mais curtas da mesma resposta. "
+    "NÃO inclua markdown, explicações ou texto extra fora do JSON."
+)
+
+
+async def draft_reply(context: str, channel: str = "ticket") -> dict:
+    """Gera uma resposta sugerida para um atendimento com base no contexto.
+
+    Retorna {"reply": str, "alternatives": list[str]}.
+    """
+    cfg = _provider_cfg()
+    if not llm_configured():
+        return {"reply": "", "alternatives": []}
+
+    messages = [
+        {"role": "system", "content": REPLY_PROMPT},
+        {"role": "user", "content": f"Canal: {channel}\n\nContexto:\n{context}"},
+    ]
+
+    try:
+        text = await chat_completion(messages)
+        import json
+        import re
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return {
+                "reply": data.get("reply", ""),
+                "alternatives": data.get("alternatives", []) or [],
+            }
+        return {"reply": text.strip(), "alternatives": []}
+    except Exception:
+        return {"reply": "", "alternatives": []}
 
 
 async def describe_image(image_base64: str, prompt: str = "Descreva esta imagem.") -> str:

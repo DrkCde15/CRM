@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from core.config import settings
 from core.database import Base, engine
 from services.scheduler import start as start_scheduler, stop as stop_scheduler
+from services import audit
 
 logger = logging.getLogger("mochi")
 from routers import (
@@ -25,7 +26,9 @@ from routers import (
     documents,
     email_channel,
     inbox,
+    logs,
     notifications,
+    plugins,
     realtime,
     search,
     sla,
@@ -49,6 +52,26 @@ async def lifespan(app: FastAPI):
     # antes (ex.: ao subir de um diretório diferente e criar um crm.db novo).
     Base.metadata.create_all(engine)
     logger.info("Banco de dados: %s", engine.url)
+
+    # Colunas novas do Ticket (SQLite nao altera via create_all). Idempotente.
+    if engine.url.drivername.startswith("sqlite"):
+        from sqlalchemy import text
+
+        _cols = [
+            ("categoria", "VARCHAR(100)"),
+            ("prioridade", "VARCHAR(50)"),
+            ("sentimento", "VARCHAR(50)"),
+            ("classified_at", "TIMESTAMP"),
+        ]
+        try:
+            with engine.begin() as conn:
+                for col, ctype in _cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE tickets ADD COLUMN {col} {ctype}"))
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.warning("Falha ao garantir colunas de classificacao: %s", exc)
 
     # ── Auto-start gateway com restart automático ──
     _gateway_stop = asyncio.Event()
@@ -129,6 +152,12 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    audit.log_error_from_request(str(request.url.path), request.method, repr(exc))
+    return JSONResponse(status_code=500, content={"detail": "Erro interno do servidor"})
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -159,6 +188,8 @@ app.include_router(sla.router)
 app.include_router(sso.router)
 app.include_router(companies.router)
 app.include_router(config.router)
+app.include_router(logs.router)
+app.include_router(plugins.router)
 
 
 @app.get("/health")

@@ -32,7 +32,10 @@ def upgrade() -> None:
         op.add_column('appointments', sa.Column('provider', sa.String(50), nullable=True))
     if not column_exists('tickets', 'sla_breached'):
         op.add_column('tickets', sa.Column('sla_breached', sa.Boolean(), nullable=False, server_default='false'))
-        op.alter_column('tickets', 'sla_breached', server_default=None)
+        # SQLite (versões sem suporte a ALTER COLUMN DROP DEFAULT) mantém o
+        # server_default; em Postgres removemos para não forçar default na coluna.
+        if op.get_bind().dialect.name != "sqlite":
+            op.alter_column('tickets', 'sla_breached', server_default=None)
 
 
 def downgrade() -> None:

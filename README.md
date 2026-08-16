@@ -27,6 +27,10 @@
 - [Tarefas Agendadas (Scheduler)](#tarefas-agendadas-scheduler)
 - [Segurança & Contas](#segurança--contas)
 - [Notificações](#notificações)
+- [Perfil do Usuário](#perfil-do-usuário)
+- [Plugins](#plugins)
+- [Logs de Auditoria](#logs-de-auditoria)
+- [Workflow Builder](#workflow-builder)
 - [Gateway WhatsApp](#gateway-whatsapp)
 - [Qualidade & Testes](#qualidade--testes)
 - [Migrations (Alembic)](#migrations-alembic)
@@ -51,7 +55,7 @@
 │   │   ├── email.py           # Envio de e-mail via Google Apps Script
 │   │   ├── llm.py             # Provedores de IA (Groq, OpenAI, Anthropic, Gemini, Ollama)
 │   │   ├── agent_manager.py   # Gerenciamento de agentes IA
-│   │   ├── mcp_manager.py     # Servidores MCP via Docker ou in-memory
+│   │   ├── mcp_manager.py     # Servidores MCP hospedados em workflows do n8n (REST API)
 │   │   ├── scheduler.py       # Tarefas agendadas (SLA, lembretes, limpeza)
 │   │   ├── notifier.py        # Notificações in-app multicamada
 │   │   ├── sla.py             # Verificação de SLA
@@ -60,11 +64,12 @@
 ├── frontend/         # React + Vite + TypeScript + Tailwind
 │   └── src/
 │       ├── core/         # Types, utils, hooks, services, UI kit, layout
-│       │   └── components/layout/
-│       │       ├── AppShell.tsx      # Shell responsivo com Sidebar apenas
+│       │       └── components/layout/
+│       │       ├── AppShell.tsx      # Shell responsivo (Sidebar + Navbar)
 │       │       ├── Sidebar.tsx       # Navegação principal (drawer/overlay)
+│       │       ├── Navbar.tsx        # Topo: sino de notificações, menu do usuário, tema
 │       │       └── PageHeader.tsx    # Título + descrição + ações
-│       ├── pages/        # Dashboard, Inbox, Tickets, Appointments, Automations, CalendarSettings, Channels, Users
+│       ├── pages/        # Dashboard, Inbox, Tickets, Appointments, Automations, CalendarSettings, Channels, Users, Workflows, Plugins, Logs, Profile
 │       ├── modules/      # AI (chat, MCP, agentes), Documents
 │       └── api.ts, store.ts, types.ts
 └── gateway/          # Gateway WhatsApp (Node.js + Baileys)
@@ -204,32 +209,29 @@ npm run build                     # gera dist/ (servido em http://localhost:8000
 
 > Para desenvolvimento com hot-reload, rode `npm run dev` em paralelo em http://localhost:5173 e configure `VITE_API_URL=http://localhost:8000/api`.
 
-### 3. Docker (opcional — para MCP Servers)
+### 3. n8n (obrigatório — para Servidores MCP)
 
-Se quiser rodar servidores MCP via containers:
+Os servidores MCP são workflows do n8n expostos via o nó **MCP Server Trigger**. Para integração automática (ativar/desativar o workflow e descobrir a URL do MCP), configure a instância n8n no `.env`:
 
 ```bash
-# Inicie o daemon Docker (se não estiver rodando)
-wsl -u root bash -c 'dockerd --iptables=false &'
-
-# O backend detecta Docker automaticamente na inicialização.
-# Sem Docker, o MCP Manager roda em modo in-memory.
+# No backend/.env
+N8N_BASE_URL=https://seu-n8n.exemplo.com
+N8N_API_KEY=sua_api_key_do_n8n
 ```
 
-> O backend usa `docker-py` para gerenciar o ciclo de vida dos containers MCP (pull, run, stop, restart, remove). Configure o servidor MCP na interface com uma imagem Docker e o backend tratará do resto.
+> Sem o n8n configurado, você ainda pode cadastrar um servidor MCP informando manualmente a **URL do Servidor MCP** (ex.: um endpoint n8n ou qualquer servidor MCP externo). Nesse caso o backend apenas armazena a configuração e não gerencia o ciclo de vida do workflow.
+>
+> O `mcp_manager` usa a API REST do n8n (`/api/v1/workflows/...`) para ativar/desativar o workflow e extrair a URL do endpoint MCP a partir do nó de trigger.
+
+> **URL do endpoint MCP:** o `mcp_manager` descobre a URL como `N8N_BASE_URL + "/mcp/" + <path>`, onde `<path>` é o parâmetro `path` do nó **MCP Server Trigger** (ex.: `path: "crm"` → `https://seu-n8n.exemplo.com/mcp/crm`). Os clientes MCP usam `POST <url>/messages` (Streamable HTTP) ou `GET <url>/sse`.
+
+> **Requisitos de execução do n8n (instalação global/fora de container):** para que a REST API seja servida em uma única instância, inicie o n8n com `N8N_MULTI_MAIN_SETUP_ENABLED=false` (sem isso, `/api/v1/*` retorna 404 pois o n8n fica aguardando liderança em modo multi-main). Se os nós do pacote `@n8n/n8n-nodes-langchain` (MCP Server Trigger, etc.) não carregarem — erro `Unrecognized node type` ao ativar o workflow — reinstale/hoiste esse pacote no prefixo global: `npm install -g @n8n/n8n-nodes-langchain@<mesma versão do n8n>`.
 
 ### 4. PostgreSQL (opcional)
 
-O Mochi funciona com SQLite (padrão) ou PostgreSQL. Para usar PostgreSQL:
+O Mochi funciona com SQLite (padrão) ou PostgreSQL. Para usar PostgreSQL, aponte `DATABASE_URL` no `.env` para a sua instância e rode as migrations:
 
 ```bash
-# Inicie o container PostgreSQL
-docker run -d --name postgres-crm \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=crm \
-  -p 5432:5432 \
-  postgres:16
-
 # No .env, altere DATABASE_URL:
 # DATABASE_URL=postgresql://postgres:postgres@localhost:5432/crm
 
@@ -280,18 +282,19 @@ Ao responder no canal **E-mail**, usa `emailChannel.send` (requer uma `EmailAcco
 ---
 
 ## Layout Responsivo
-
-O Mochi usa **Sidebar como navegação principal** (sem Topbar/Header global). O layout adapta-se a três breakpoints:
+O Mochi usa a **Sidebar como navegação principal** na lateral esquerda e uma **Navbar (topo)** com o sino de notificações, o menu do usuário (avatar → Perfil/Sair) e o alternador de tema. O layout adapta-se a três breakpoints:
 
 | Dispositivo | Comportamento |
 |---|---|
-| **Desktop** (≥1024px) | Sidebar fixa à esquerda, conteúdo à direita |
+| **Desktop** (≥1024px) | Sidebar fixa à esquerda, Navbar no topo do conteúdo |
 | **Tablet** (768-1023px) | Sidebar colapsável com botão hamburger |
-| **Mobile** (<768px) | Sidebar em drawer com overlay escuro, hamburger no topo |
+| **Mobile** (<768px) | Sidebar em drawer com overlay escuro, hamburger na Navbar |
 
 Componentes:
-- **`AppShell.tsx`** — shell responsivo que gerencia estado da sidebar e animações.
-- **`Sidebar.tsx`** — navegação agrupada (Principal, Inteligência Artificial, Ferramentas, Administração), indicador ativo com barra animada, alternador de tema escuro/claro e botão de logout.
+
+- **`AppShell.tsx`** — shell responsivo que gerencia o estado da sidebar e da navbar.
+- **`Navbar.tsx`** — topo global: sino de notificações com contador de não lidas, menu do usuário (avatar) e toggle de tema; atualiza em tempo real via WebSocket.
+- **`Sidebar.tsx`** — navegação agrupada (Principal, Inteligência Artificial, Ferramentas, Administração), indicador ativo com barra animada e botão de logout.
 - **`PageHeader.tsx`** — componente reutilizável com título, descrição e slot de ações, usado em todas as páginas.
 
 ---
@@ -445,16 +448,16 @@ O Mochi foi desenhado com **integrações abertas**, reunindo comunicação, cal
 
 | Integração | Status |
 |---|---|
-| PostgreSQL | ✅ Disponível (via Docker) |
+| PostgreSQL | ✅ Disponível |
 | SQLite | ✅ Disponível (desenvolvimento) |
 | Redis | 📋 Planejado (cache/fila) |
 
-### MCP / Docker
+### MCP / n8n
 
 | Integração | Status |
 |---|---|
-| Docker SDK (gerenciamento de containers) | ✅ Disponível |
-| MCP Servers | ✅ Disponível |
+| n8n REST API (gerenciamento de workflows MCP) | ✅ Disponível |
+| MCP Servers (via workflows n8n) | ✅ Disponível |
 
 ### APIs
 
@@ -500,48 +503,56 @@ Funcionalidades planejadas:
 
 Todos esses recursos utilizarão uma **arquitetura desacoplada**, permitindo diferentes provedores de IA (OpenAI, Gemini, Ollama, Groq) sem acoplamento ao core da plataforma.
 
+### IA nos Tickets
+
+Os chamados já contam com recursos de IA operacionais (`services/llm.py`):
+
+- **Classificação automática** (`POST /api/tickets/{id}/classify`): classifica `categoria`, `prioridade` e `sentimento` e gera um `resumo`, salvando no ticket e registrando um log de auditoria.
+- **Resposta inteligente** (`POST /api/tickets/{id}/suggest-reply`): gera um rascunho de resposta (com alternativas) a partir do histórico do ticket.
+
+Na tela de **Chamados** (`Tickets.tsx`), ao abrir um ticket há um painel lateral com os badges de classificação e os botões **"Classificar com IA"** e **"Gerar resposta (IA)"** (preenche a resposta e lista alternativas).
+
 ---
 
 ## Servidores MCP (Model Context Protocol)
 
-O Mochi gerencia servidores MCP via **Docker** (ou modo in-memory quando Docker não está disponível) para estender as capacidades da IA com ferramentas externas.
+O Mochi gerencia servidores MCP hospedados em **workflows do n8n** (ou qualquer servidor MCP externo informado por URL) para estender as capacidades da IA com ferramentas externas. Cada servidor MCP aponta para um workflow n8n que usa o nó **MCP Server Trigger** para expor ferramentas via HTTP.
 
-### Ciclo de vida do container
+### Ciclo de vida
 
 | Ação | Descrição |
 |---|---|
-| **Criar** | `docker pull` da imagem → `docker run` com env vars e porta mapeada |
-| **Reiniciar** | `docker restart` no container |
-| **Excluir** | `docker stop` + `docker rm` + registro removido do banco |
-| **Ativar/Desativar** | Alterna o estado `enabled` no banco (não afeta o container) |
+| **Criar** | Salva a configuração → ativa o workflow n8n (via API) e descobre a URL do MCP a partir do nó de trigger |
+| **Reiniciar** | Reativa o workflow n8n |
+| **Excluir** | Desativa o workflow n8n (best-effort) + remove o registro do banco |
+| **Ativar/Desativar** | Alterna o estado `enabled` no banco (não afeta o workflow) |
 
 ### Modelo `MCPServer`
 
 | Campo | Tipo | Descrição |
 |---|---|---|
 | `name` | string | Nome do servidor |
-| `image` | string | Imagem Docker (ex: `ghcr.io/my-org/mcp-server`) |
-| `serverUrl` | string | URL externa (alternativa ao Docker) |
-| `port` | int | Porta mapeada |
-| `containerName` | string | Nome do container no Docker |
-| `containerId` | string | ID do container |
-| `status` | `running` / `stopped` / `error` | Estado atual |
+| `serverUrl` | string | URL do endpoint MCP (ex: `https://n8n.../mcp/{webhookId}`) |
+| `workflowId` | string | ID do workflow n8n com o MCP Server Trigger |
+| `n8nBaseUrl` | string | URL da instância n8n (opcional, herda a global do `.env`) |
+| `n8nApiKey` | string | API Key do n8n (opcional, herda a global do `.env`) |
+| `status` | `running` / `stopped` / `error` | Estado atual (derivado da ativação no n8n) |
 | `envVars` | dict | Variáveis de ambiente |
-| `type` | string | Tipo (github, postgresql, custom, etc.) |
+| `type` | string | Tipo (github, postgresql, n8n, custom, etc.) |
 
 ### Fallback
 
-Se o Docker daemon não estiver disponível no WSL, o `mcp_manager` opera **em modo in-memory**: os servidores são salvos no banco, mas containers não são criados.
+Se a instância n8n não estiver configurada (`N8N_BASE_URL`/`N8N_API_KEY`), você ainda pode cadastrar um servidor MCP informando manualmente a **URL do Servidor MCP**. Nesse caso o `mcp_manager` apenas armazena a configuração (sem gerenciar o workflow no n8n).
 
 Endpoints (`/api/ai/mcp`):
 
 | Método | Rota | Descrição |
 |---|---|---|
 | `GET` | `/mcp` | Lista servidores |
-| `POST` | `/mcp` | Cria servidor (com imagem, porta, env vars) |
+| `POST` | `/mcp` | Cria servidor (workflowId, URL, env vars) |
 | `PUT` | `/mcp/{id}` | Atualiza configuração |
-| `DELETE` | `/mcp/{id}` | Remove do banco e container |
-| `POST` | `/mcp/{id}/restart` | Reinicia o container |
+| `DELETE` | `/mcp/{id}` | Remove do banco e desativa o workflow n8n |
+| `POST` | `/mcp/{id}/restart` | Reativa o workflow n8n |
 
 ---
 
@@ -609,7 +620,7 @@ O `notifier.py` expõe duas funções principais:
 - **`notify_company(company_id, title, body, link)`** — notifica **todos os usuários** de uma empresa (multitenant).
 - **`notify_user(user_id, title, body, link)`** — notifica um usuário específico.
 
-- Ícone de **sino** no sidebar com **contador de não lidas**.
+- Ícone de **sino** na **Navbar** (topo) com **contador de não lidas**.
 - **Dropdown** com a lista de notificações e ação **"Marcar todas como lidas"**; cada item pode ser marcado como lido (e leva ao link do recurso).
 - **Tempo real via WebSocket**: o backend empurra eventos (`{type:"refresh", resource}`) para os clientes conectados em `/ws?token=<JWT>`. O frontend escuta e re-busca o recurso afetado, substituindo o polling. Reconexão automática a cada ~3s.
 
@@ -622,6 +633,67 @@ Endpoints (`routers/notifications.py`):
 | `POST` | `/notifications/read-all` | Marca todas como lidas |
 
 ---
+
+## Perfil do Usuário
+
+Página **Perfil** (`/profile`), acessível pelo menu do avatar na Navbar, onde o usuário autenticado gerencia seus próprios dados.
+
+- **Dados do perfil**: edita `name` e `email` (com validação de e-mail único) via `PUT /api/auth/profile`.
+- **Alteração de senha**: informa a senha atual + nova (mín. 8 caracteres, com maiúscula, minúscula e número) + confirmação; o backend valida a senha atual antes de aplicar.
+- O `useAuth().loadUser()` busca `GET /api/auth/me` na inicialização do app (`App.tsx`) e mantém a navbar/header sincronizados após salvar.
+
+> O usuário é carregado uma única vez no bootstrap do app; a página de Perfil consome esse estado e preenche o formulário com os dados reais, exibindo *loading* até chegarem (sem valores fixos/hardcoded).
+
+Endpoints (`routers/auth.py`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/auth/me` | Dados do usuário autenticado |
+| `PUT` | `/auth/profile` | Atualiza nome/e-mail e/ou senha |
+
+## Plugins
+
+Catálogo de **integrações** por empresa, gerenciado em `/plugins`. Cada plugin tem estado `enabled` e um `config` (mapa chave-valor) específico.
+
+- O backend já embute um catálogo interno de plugins (WhatsApp, E-mail, Telegram, IA/LLM, n8n/MCP, Calendário, Documentos, Slack, Webhooks), cada um com schema de configuração.
+- Ativar/desativar e editar a configuração persiste no banco (`Plugin` por `company_id`+`key`).
+
+Endpoints (`routers/plugins.py`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/plugins` | Lista o catálogo com estado `enabled`/config da empresa |
+| `GET` | `/plugins/{key}` | Detalhe de um plugin |
+| `PUT` | `/plugins/{key}` | Ativa/desativa e salva `config` |
+
+## Logs de Auditoria
+
+Central de **logs** do sistema em `/logs`, alimentada por `services/audit.py`:
+
+- Cada ação relevante (ex.: classificação de ticket, alteração de plugin) registra um `AuditLog` (`action`, `entity`, `entity_id`, `level`, `details`).
+- Erros 500 da API são capturados por um handler global em `main.py` e registrados como log de nível `error`.
+- A tela de Logs permite filtrar por nível/entidade/ação/busca e inspecionar o detalhe (JSON).
+
+Endpoints (`routers/logs.py`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/logs` | Lista paginada (filtros `level`, `entity`, `action`, `user_id`, `search`) |
+| `GET` | `/logs/stats` | Contagem por nível/entidade |
+
+## Workflow Builder
+
+Editor **visual** de automações em `/workflows`, dirigido pelo schema retornado por `GET /api/workflows/schema` (eventos, campos de condição, operadores e tipos de ação). Cada workflow tem um **switch de ativar/desativar** que persiste o campo `active` via `PUT /api/workflows/{id}` — o front faz atualização otimista (feedback imediato) e reverte em caso de erro na API.
+
+Endpoints (`routers/workflows.py`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/workflows` | Lista os workflows da empresa |
+| `GET` | `/workflows/schema` | Catálogo de eventos/condições/ações para o editor |
+| `POST` | `/workflows` | Cria workflow |
+| `PUT` | `/workflows/{id}` | Atualiza (inclui `active`) |
+| `DELETE` | `/workflows/{id}` | Remove |
 
 ## Gateway WhatsApp
 
@@ -759,30 +831,31 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 | Chat IA (múltiplos provedores) | ✅ Disponível |
 | Agentes de IA configuráveis | ✅ Disponível |
 | Auto-resposta WhatsApp (Groq) | ✅ Disponível |
-| Servidores MCP (Docker) | ✅ Disponível |
-| Respostas Inteligentes | 📋 Planejado |
+| Servidores MCP (n8n) | ✅ Disponível |
+| Respostas Inteligentes | ✅ Disponível |
 | Chatbot | ✅ Disponível (configurável em /chatbot) |
 | RAG | 📋 Planejado |
 | Base de Conhecimento | 📋 Planejado |
-| Classificação de Tickets | 📋 Planejado |
-| Análise de Sentimentos | 📋 Planejado |
+| Classificação de Tickets | ✅ Disponível |
+| Análise de Sentimentos | ✅ Disponível |
 
 ### Produtividade
 
 | Funcionalidade | Status |
 |---|---|
 | Automações | ✅ Disponível |
-| Workflow Builder | 📋 Planejado |
+| Workflow Builder | ✅ Disponível |
 | SLA | ✅ Disponível |
 | Tarefas Agendadas | ✅ Disponível |
 | Macros | ✅ Disponível |
 | Respostas rápidas | ✅ Disponível |
+| Perfil do Usuário | ✅ Disponível |
 
 ### Infraestrutura
 
 | Funcionalidade | Status |
 |---|---|
-| Docker (MCP containers) | ✅ Disponível |
+| n8n (MCP workflows) | ✅ Disponível |
 | Notificações in-app + WebSocket | ✅ Disponível |
 | Layout responsivo (Sidebar) | ✅ Disponível |
 | Tema escuro/claro | ✅ Disponível |
@@ -792,11 +865,11 @@ Legenda: ✅ Disponível · 🔄 Em desenvolvimento · 📋 Planejado
 | Funcionalidade | Status |
 |---|---|
 | Marketplace | 📋 Planejado |
-| Plugins | 📋 Planejado |
+| Plugins | ✅ Disponível |
 | Mobile | 📋 Planejado |
 | Multi-Tenant (isolamento por `company_id`) | ✅ Disponível |
-| Auditoria | 📋 Planejado |
-| Logs | 📋 Planejado |
+| Auditoria | ✅ Disponível |
+| Logs | ✅ Disponível |
 
 ---
 

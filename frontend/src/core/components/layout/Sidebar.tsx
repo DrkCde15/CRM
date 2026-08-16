@@ -5,7 +5,7 @@ import {
   MessageSquare, Users, Ticket, Calendar, LayoutDashboard,
   Settings, Bot, FileText, Activity, UserCircle,
   Globe, Workflow, Gauge, Building2, Webhook,
-  Sun, Moon, X, LogOut, type LucideIcon,
+  Sun, Moon, X, LogOut, Boxes, ScrollText, type LucideIcon,
 } from 'lucide-react'
 
 interface NavItem {
@@ -32,7 +32,10 @@ const aiNav: NavItem[] = [
 
 const toolsNav: NavItem[] = [
   { label: 'Documentos', path: '/documents', icon: FileText },
-  { label: 'Automações', path: '/automations', icon: Workflow },
+  { label: 'Workflow Builder', path: '/workflows', icon: Workflow },
+  { label: 'Automações', path: '/automations', icon: Activity },
+  { label: 'Plugins', path: '/plugins', icon: Boxes },
+  { label: 'Logs', path: '/logs', icon: ScrollText },
 ]
 
 const adminNav: NavItem[] = [

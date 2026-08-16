@@ -36,8 +36,9 @@ class MCPCreate(BaseModel):
     serverUrl: str = ""
     type: str = "custom"
     enabled: bool = True
-    image: str = ""
-    port: int = 0
+    workflowId: str = ""
+    n8nBaseUrl: str = ""
+    n8nApiKey: str = ""
     envVars: dict[str, str] = {}
 
 
@@ -46,8 +47,9 @@ class MCPUpdate(BaseModel):
     serverUrl: str | None = None
     type: str | None = None
     enabled: bool | None = None
-    image: str | None = None
-    port: int | None = None
+    workflowId: str | None = None
+    n8nBaseUrl: str | None = None
+    n8nApiKey: str | None = None
     envVars: dict[str, str] | None = None
 
 

@@ -1,25 +1,73 @@
 import logging
-import os
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
+
+from core.config import settings
 from core.database import SessionLocal
 from models.models import MCPServer
 
 logger = logging.getLogger("mochi.mcp")
 
-DOCKER_AVAILABLE = False
-docker_client = None
+N8N_BASE_URL = settings.n8n_base_url
+N8N_API_KEY = settings.n8n_api_key
+N8N_AVAILABLE = bool(N8N_BASE_URL and N8N_API_KEY)
 
-try:
-    import docker
-    docker_client = docker.from_env()
-    docker_client.ping()
-    DOCKER_AVAILABLE = True
-    logger.info("Docker disponivel para MCP")
-except Exception:
-    logger.warning("Docker nao disponivel — MCP rodara em modo in-memory")
+
+def _n8n_headers(api_key: str) -> dict:
+    return {"X-N8N-API-KEY": api_key, "Content-Type": "application/json"}
+
+
+def _resolve_n8n(server: MCPServer) -> tuple[str, str]:
+    base = (server.n8n_base_url or N8N_BASE_URL or "").rstrip("/")
+    key = server.n8n_api_key or N8N_API_KEY or ""
+    return base, key
+
+
+def _n8n_request(method: str, base: str, key: str, path: str, json: dict | None = None) -> dict:
+    with httpx.Client(timeout=15) as client:
+        r = client.request(
+            method,
+            f"{base}/api/v1/{path}",
+            headers=_n8n_headers(key),
+            json=json or {},
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+def _extract_mcp_url(workflow: dict, base: str) -> str:
+    """Recupera a URL do endpoint MCP a partir do nó 'MCP Server Trigger' do workflow.
+
+    O n8n registra o MCP Server Trigger em ``/mcp/<path>``, onde ``<path>`` é o
+    parâmetro ``path`` do nó (e não um webhookId gerado). Ex.: path="crm" -> ``/mcp/crm``.
+    """
+    for node in workflow.get("nodes", []):
+        node_type = node.get("type", "").lower()
+        if "mcp" in node_type and "trigger" in node_type:
+            path = (node.get("parameters", {}) or {}).get("path")
+            if path:
+                return f"{base}/mcp/{path.strip('/')}"
+    return ""
+
+
+def _activate_workflow(base: str, key: str, workflow_id: str) -> str:
+    """Ativa o workflow no n8n e retorna o status resultante.
+
+    Trata 409 (workflow já ativo) como sucesso.
+    """
+    try:
+        _n8n_request("POST", base, key, f"workflows/{workflow_id}/activate")
+        return "running"
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 409:
+            return "running"
+        logger.error("Erro ao ativar workflow n8n %s: %s", workflow_id, e)
+        return "error"
+    except Exception as e:
+        logger.error("Erro ao ativar workflow n8n %s: %s", workflow_id, e)
+        return "error"
 
 
 def _server_to_dict(s: MCPServer) -> dict:
@@ -27,11 +75,9 @@ def _server_to_dict(s: MCPServer) -> dict:
         "id": str(s.id),
         "name": s.name,
         "serverUrl": s.server_url,
-        "image": s.image,
-        "containerName": s.container_name or "",
-        "containerId": s.container_id or "",
+        "workflowId": s.workflow_id or "",
+        "n8nBaseUrl": s.n8n_base_url or "",
         "type": s.type,
-        "port": s.port,
         "status": s.status,
         "enabled": s.enabled,
         "envVars": s.env_vars,
@@ -63,9 +109,10 @@ def create_client(data: dict) -> dict:
             company_id=data.get("company_id", 1),
             name=data.get("name", ""),
             server_url=data.get("serverUrl", ""),
-            image=data.get("image", ""),
+            workflow_id=data.get("workflowId", ""),
+            n8n_base_url=data.get("n8nBaseUrl", ""),
+            n8n_api_key=data.get("n8nApiKey", ""),
             type=data.get("type", "custom"),
-            port=data.get("port", 0),
             env_vars=data.get("envVars", {}),
             enabled=data.get("enabled", True),
             status="stopped",
@@ -74,29 +121,18 @@ def create_client(data: dict) -> dict:
         db.commit()
         db.refresh(server)
 
-        if DOCKER_AVAILABLE and server.image:
-            container_name = f"mcp-{server.name.lower().replace(' ', '-')}-{server.id}"
+        base, key = _resolve_n8n(server)
+        if base and key and server.workflow_id:
             try:
-                logger.info("Baixando imagem %s...", server.image)
-                docker_client.images.pull(server.image)
-
-                env_list = [f"{k}={v}" for k, v in (server.env_vars or {}).items()]
-                container = docker_client.containers.run(
-                    image=server.image,
-                    name=container_name,
-                    detach=True,
-                    environment=env_list,
-                    ports={f"{server.port}/tcp": server.port} if server.port else None,
-                    remove=False,
-                )
-                server.container_id = container.id
-                server.container_name = container_name
-                server.status = "running"
-                server.server_url = f"http://{container_name}:{server.port}" if server.port else ""
-                logger.info("Container MCP iniciado: %s", container_name)
+                server.status = _activate_workflow(base, key, server.workflow_id)
+                if server.status == "running":
+                    workflow = _n8n_request("GET", base, key, f"workflows/{server.workflow_id}")
+                    url = _extract_mcp_url(workflow, base)
+                    if url:
+                        server.server_url = url
             except Exception as e:
                 server.status = "error"
-                logger.error("Erro ao iniciar container MCP: %s", e)
+                logger.error("Erro ao configurar servidor MCP no n8n: %s", e)
 
         db.commit()
         return _server_to_dict(server)
@@ -115,16 +151,32 @@ def update_client(server_id: str, data: dict) -> dict | None:
             server.name = data["name"]
         if "serverUrl" in data:
             server.server_url = data["serverUrl"]
-        if "image" in data:
-            server.image = data["image"]
+        if "workflowId" in data:
+            server.workflow_id = data["workflowId"]
+        if "n8nBaseUrl" in data:
+            server.n8n_base_url = data["n8nBaseUrl"]
+        if "n8nApiKey" in data:
+            server.n8n_api_key = data["n8nApiKey"]
         if "type" in data:
             server.type = data["type"]
-        if "port" in data:
-            server.port = data.get("port", 0)
         if "enabled" in data:
             server.enabled = data["enabled"]
         if "envVars" in data:
             server.env_vars = data["envVars"]
+
+        base, key = _resolve_n8n(server)
+        workflow_changed = "workflowId" in data or "n8nBaseUrl" in data or "n8nApiKey" in data
+        if base and key and server.workflow_id and workflow_changed:
+            try:
+                server.status = _activate_workflow(base, key, server.workflow_id)
+                if server.status == "running":
+                    workflow = _n8n_request("GET", base, key, f"workflows/{server.workflow_id}")
+                    url = _extract_mcp_url(workflow, base)
+                    if url:
+                        server.server_url = url
+            except Exception as e:
+                server.status = "error"
+                logger.error("Erro ao atualizar servidor MCP no n8n: %s", e)
 
         db.commit()
         return _server_to_dict(server)
@@ -139,14 +191,12 @@ def delete_client(server_id: str) -> bool:
         if not server:
             return False
 
-        if DOCKER_AVAILABLE and server.container_id:
+        base, key = _resolve_n8n(server)
+        if base and key and server.workflow_id:
             try:
-                container = docker_client.containers.get(server.container_id)
-                container.stop(timeout=5)
-                container.remove()
-                logger.info("Container MCP removido: %s", server.container_name)
+                _n8n_request("POST", base, key, f"workflows/{server.workflow_id}/deactivate")
             except Exception as e:
-                logger.warning("Erro ao remover container: %s", e)
+                logger.warning("Erro ao desativar workflow n8n: %s", e)
 
         db.delete(server)
         db.commit()
@@ -162,15 +212,9 @@ def restart_client(server_id: str) -> dict | None:
         if not server:
             return None
 
-        if DOCKER_AVAILABLE and server.container_id:
-            try:
-                container = docker_client.containers.get(server.container_id)
-                container.restart(timeout=5)
-                server.status = "running"
-                logger.info("Container MCP reiniciado: %s", server.container_name)
-            except Exception as e:
-                server.status = "error"
-                logger.error("Erro ao reiniciar container: %s", e)
+        base, key = _resolve_n8n(server)
+        if base and key and server.workflow_id:
+            server.status = _activate_workflow(base, key, server.workflow_id)
         else:
             server.status = "stopped"
 

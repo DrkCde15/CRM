@@ -1,7 +1,12 @@
 from typing import Annotated
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    EnvSettingsSource,
+    DotEnvSettingsSource,
+)
 
 
 class Settings(BaseSettings):
@@ -93,6 +98,10 @@ class Settings(BaseSettings):
     max_upload_mb: int = 15
     email_poll_seconds: int = 60
 
+    # ── n8n (servidores MCP hospedados em workflows n8n) ──
+    n8n_base_url: Annotated[str, Field(validation_alias="N8N_BASE_URL")] = ""
+    n8n_api_key: Annotated[str, Field(validation_alias="N8N_API_KEY")] = ""
+
     def validate(self) -> list[str]:
         issues: list[str] = []
         if not self.secret_key or self.secret_key == "change-me-in-production":
@@ -111,6 +120,42 @@ class Settings(BaseSettings):
         if provider == "groq" and not self.api_groq:
             issues.append("LLM_PROVIDER=groq sem API_GROQ: respostas de IA indisponíveis.")
         return issues
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        # pydantic-settings 2.x exige JSON para campos do tipo lista; este mixin
+        # permite manter a convenção de vírgulas (ex.: ALLOWED_ORIGINS=a,b,c).
+        class _CommaListMixin:
+            def prepare_field_value(self, field_name, field, field_value, value_is_complex):
+                if field_name == "allowed_origins" and isinstance(field_value, str):
+                    return [o.strip() for o in field_value.split(",") if o.strip()]
+                return super().prepare_field_value(
+                    field_name, field, field_value, value_is_complex
+                )
+
+        class CommaEnvSource(_CommaListMixin, EnvSettingsSource):
+            pass
+
+        class CommaDotEnvSource(_CommaListMixin, DotEnvSettingsSource):
+            pass
+
+        return (
+            init_settings,
+            CommaEnvSource(settings_cls, case_sensitive=False),
+            CommaDotEnvSource(
+                settings_cls,
+                env_file=settings_cls.model_config.get("env_file"),
+                env_file_encoding="utf-8",
+            ),
+            file_secret_settings,
+        )
 
 
 settings = Settings()

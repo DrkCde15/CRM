@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -9,9 +10,10 @@ from core.deps import get_current_user
 from models.models import Client, Ticket, User
 from schemas.schemas import Paginated, TicketCreate, TicketOut
 from services import email, notifications, realtime, taky
-from services.llm import chat_completion
+from services.llm import chat_completion, classify_message, draft_reply
 from services.webhooks import emit as webhook_emit
 from services.workflows import run_workflows
+from services import audit
 
 
 SUMMARY_PROMPT = (
@@ -157,6 +159,73 @@ def create_ticket(
         "status": ticket.status,
     })
     return ticket
+
+
+@router.post("/{ticket_id}/classify")
+async def classify_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Classifica o ticket via IA (categoria, prioridade, sentimento) e persiste."""
+    ticket = db.query(Ticket).filter_by(id=ticket_id, company_id=current_user.company_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    text = f"{ticket.titulo}\n{ticket.descricao}".strip()
+    result = await classify_message(text)
+
+    ticket.categoria = result.get("intent")
+    ticket.prioridade = result.get("priority")
+    ticket.sentimento = result.get("sentiment")
+    ticket.classified_at = datetime.now()
+    if not ticket.resumo and result.get("summary"):
+        ticket.resumo = result.get("summary")
+    db.commit()
+    db.refresh(ticket)
+
+    audit.log_action(
+        db,
+        action="ticket.classify",
+        entity="ticket",
+        entity_id=ticket_id,
+        level="info",
+        details={"categoria": ticket.categoria, "prioridade": ticket.prioridade, "sentimento": ticket.sentimento},
+        user=current_user,
+    )
+    return {
+        "id": ticket.id,
+        "categoria": ticket.categoria,
+        "prioridade": ticket.prioridade,
+        "sentimento": ticket.sentimento,
+        "resumo": ticket.resumo,
+    }
+
+
+@router.post("/{ticket_id}/suggest-reply")
+async def suggest_ticket_reply(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gera uma resposta sugerida para o ticket via IA."""
+    ticket = db.query(Ticket).filter_by(id=ticket_id, company_id=current_user.company_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    context = (
+        f"Título: {ticket.titulo}\n"
+        f"Descrição: {ticket.descricao or 'Sem descrição'}\n"
+        f"Resumo: {ticket.resumo or ''}\n"
+        f"Categoria: {ticket.categoria or 'n/d'}\n"
+        f"Prioridade: {ticket.prioridade or 'n/d'}"
+    )
+    result = await draft_reply(context, channel="ticket")
+    return {
+        "id": ticket.id,
+        "reply": result.get("reply", ""),
+        "alternatives": result.get("alternatives", []),
+    }
 
 
 @router.put("/{ticket_id}/status", response_model=TicketOut)

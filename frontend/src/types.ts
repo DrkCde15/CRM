@@ -33,6 +33,10 @@ export interface Ticket {
   status: string
   taky_task_id: number | null
   resumo?: string | null
+  categoria?: string | null
+  prioridade?: string | null
+  sentimento?: string | null
+  classified_at?: string | null
   created_at: string
 }
 

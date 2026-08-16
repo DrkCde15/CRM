@@ -52,6 +52,12 @@ export const auth = {
     return data as User
   },
   me: async () => (await api.get<User>('/auth/me')).data,
+  updateProfile: async (body: {
+    name?: string
+    email?: string
+    current_password?: string
+    new_password?: string
+  }) => (await api.put<User>('/auth/profile', body)).data,
   users: async () => (await api.get<User[]>('/auth/users')).data,
   forgotPassword: async (email: string) =>
     (await api.post('/auth/forgot-password', { email })).data,
@@ -98,6 +104,14 @@ export const tickets = {
     (await api.post('/tickets/batch/status', { ids, status })).data,
   batchDelete: async (ids: number[]) =>
     (await api.post('/tickets/batch/delete', { ids })).data,
+  classify: async (id: number) =>
+    (await api.post<{ id: number; categoria: string | null; prioridade: string | null; sentimento: string | null; resumo: string | null }>(
+      `/tickets/${id}/classify`,
+    )).data,
+  suggestReply: async (id: number) =>
+    (await api.post<{ id: number; reply: string; alternatives: string[] }>(
+      `/tickets/${id}/suggest-reply`,
+    )).data,
 }
 
 export const appointments = {
@@ -223,12 +237,26 @@ export const webhooksApi = {
 
 export const workflowsApi = {
   list: async () => (await api.get('/workflows')).data,
+  schema: async () => (await api.get('/workflows/schema')).data,
   create: async (body: { name: string; event: string; conditions?: any; actions: any }) =>
     (await api.post('/workflows', body)).data,
   update: async (id: number, body: any) =>
     (await api.put(`/workflows/${id}`, body)).data,
   remove: async (id: number) =>
     (await api.delete(`/workflows/${id}`)).data,
+}
+
+export const pluginsApi = {
+  list: async () => (await api.get('/plugins')).data,
+  get: async (key: string) => (await api.get(`/plugins/${key}`)).data,
+  update: async (key: string, body: { enabled?: boolean; config?: Record<string, string> }) =>
+    (await api.put(`/plugins/${key}`, body)).data,
+}
+
+export const logsApi = {
+  list: async (params: { level?: string; entity?: string; action?: string; search?: string; limit?: number; offset?: number } = {}) =>
+    (await api.get('/logs', { params })).data,
+  stats: async () => (await api.get('/logs/stats')).data,
 }
 
 export default api

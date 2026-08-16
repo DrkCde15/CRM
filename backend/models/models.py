@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -130,6 +130,10 @@ class Ticket(Base):
     taky_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     resumo: Mapped[str | None] = mapped_column(Text, nullable=True)
     sla_breached: Mapped[bool] = mapped_column(Boolean, default=False)
+    categoria: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    prioridade: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    sentimento: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     client: Mapped["Client"] = relationship(back_populates="tickets")
@@ -285,10 +289,9 @@ class MCPServer(Base):
     company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     server_url: Mapped[str] = mapped_column(String(500), default="")
-    image: Mapped[str] = mapped_column(String(255), default="")
-    container_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    container_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    port: Mapped[int] = mapped_column(Integer, default=0)
+    workflow_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    n8n_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    n8n_api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     env_vars: Mapped[dict] = mapped_column(JSON, default=dict)
     type: Mapped[str] = mapped_column(String(50), default="custom")
     status: Mapped[str] = mapped_column(String(50), default="stopped")  # running, stopped, error
@@ -333,5 +336,39 @@ class AIMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     conversation: Mapped["AIConversation"] = relationship(back_populates="messages")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(100), index=True)  # ex.: ticket.classify, plugin.toggle, login
+    entity: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    level: Mapped[str] = mapped_column(String(20), default="info", index=True)  # info | warning | error
+    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), index=True)
+
+
+class Plugin(Base):
+    __tablename__ = "plugins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    key: Mapped[str] = mapped_column(String(100), index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(100), default="geral")
+    icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    __table_args__ = (UniqueConstraint("company_id", "key", name="uq_plugin_company_key"),)
 
 
