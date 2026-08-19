@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -35,7 +36,6 @@ from routers import (
     sso,
     stats,
     tickets,
-    webhook,
     webhooks,
     workflows,
 )
@@ -105,6 +105,58 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning("Diretório do gateway não encontrado: %s", gateway_dir)
 
+    # ── Auto-start do bot WhatsApp (FastAPI, em backend/bot) com restart ──
+    _bot_stop = asyncio.Event()
+    _bot_task: asyncio.Task | None = None
+
+    if getattr(settings, "auto_start_bot", False):
+        bot_dir = os.path.normpath(os.path.join(_BASE_DIR, settings.bot_path))
+        if os.path.isdir(bot_dir):
+
+            async def _run_bot():
+                retries = 0
+                # Repassa para o bot apenas as vars de whitelist/grupos que
+                # foram efetivamente definidas no backend/.env. Quando ausentes,
+                # o bot usa seu próprio .env / banco (precedência do ambiente).
+                bot_env = {
+                    **os.environ,
+                    "BOT_PORT": str(settings.bot_port),
+                    "GATEWAY_URL": settings.gateway_url,
+                    # O bot compartilha o crm.db do CRM (sem banco próprio).
+                    # Menus e cache do bot ficam lá. DATABASE_URL é fixado
+                    # aqui para não herdar valores do backend/.env.
+                    "DATABASE_URL": f"sqlite:///{os.path.abspath(os.path.join(bot_dir, '..', 'crm.db'))}",
+                }
+                if settings.whitelist_enabled is not None:
+                    bot_env["WHITELIST_ENABLED"] = settings.whitelist_enabled
+                if settings.whitelist:
+                    bot_env["WHITELIST"] = settings.whitelist
+                if settings.group_enabled is not None:
+                    bot_env["GROUP_ENABLED"] = settings.group_enabled
+
+                while not _bot_stop.is_set():
+                    proc = await asyncio.create_subprocess_exec(
+                        sys.executable, "main.py",
+                        cwd=bot_dir,
+                        env=bot_env,
+                    )
+                    logger.info("Bot WhatsApp iniciado (PID %s)", proc.pid)
+                    retries = 0
+                    await proc.wait()
+                    if _bot_stop.is_set():
+                        break
+                    retries += 1
+                    delay = min(retries * 2, 30)
+                    logger.warning(
+                        "Bot encerrado inesperadamente (código %s). "
+                        "Reiniciando em %ss...", proc.returncode, delay,
+                    )
+                    await asyncio.sleep(delay)
+
+            _bot_task = asyncio.create_task(_run_bot())
+        else:
+            logger.warning("Diretório do bot não encontrado: %s", bot_dir)
+
     start_scheduler()
     logger.info("Scheduler de tarefas iniciado")
 
@@ -116,6 +168,13 @@ async def lifespan(app: FastAPI):
         _gateway_task.cancel()
         try:
             await _gateway_task
+        except asyncio.CancelledError:
+            pass
+    if _bot_task is not None:
+        _bot_stop.set()
+        _bot_task.cancel()
+        try:
+            await _bot_task
         except asyncio.CancelledError:
             pass
 
@@ -171,7 +230,6 @@ app.include_router(clients.router)
 app.include_router(tickets.router)
 app.include_router(appointments.router)
 app.include_router(stats.router)
-app.include_router(webhook.router)
 app.include_router(notifications.router)
 app.include_router(email_channel.router)
 app.include_router(inbox.router)

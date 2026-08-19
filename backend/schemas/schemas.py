@@ -90,7 +90,7 @@ class AppointmentCreate(BaseModel):
 class AppointmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    client_id: int
+    client_id: int | None = None
     name: str
     servico: str
     data_hora: datetime

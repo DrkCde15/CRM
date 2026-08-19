@@ -3,6 +3,7 @@ import { workflowsApi } from '../api'
 import { ApiError } from '../api'
 import { useToasts } from '../store'
 import { PageHeader } from '../core/components/layout/PageHeader'
+import { MessageSquare, Ticket, User, Webhook, Bot, Workflow, type LucideIcon } from 'lucide-react'
 
 interface Workflow {
   id?: number
@@ -19,6 +20,25 @@ interface WorkflowSchema {
   conditionFields: { value: string; label: string; type: string }[]
   operators: { value: string; label: string }[]
   actionTypes: { value: string; label: string; params: { key: string; label: string; type: string }[] }[]
+}
+
+const EVENT_ICONS: Record<string, LucideIcon> = {
+  'ticket.created': Ticket,
+  'message.received': MessageSquare,
+  'message.user': MessageSquare,
+  'user.message': MessageSquare,
+  'webhook.received': Webhook,
+}
+
+function getEventIcon(event: string): LucideIcon {
+  if (EVENT_ICONS[event]) return EVENT_ICONS[event]
+  const e = event.toLowerCase()
+  if (e.includes('message') || e.includes('msg') || e.includes('chat')) return MessageSquare
+  if (e.includes('ticket')) return Ticket
+  if (e.includes('user')) return User
+  if (e.includes('webhook')) return Webhook
+  if (e.includes('bot')) return Bot
+  return Workflow
 }
 
 export default function WorkflowsPage() {
@@ -137,10 +157,18 @@ export default function WorkflowsPage() {
                 aria-label={wf.active ? 'Desativar workflow' : 'Ativar workflow'}
                 aria-checked={wf.active}
                 role="switch"
-                className={`w-10 h-6 rounded-full transition-colors relative shrink-0 ${wf.active ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'} ${togglingId === wf.id ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
+                className={`flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full px-0.5 transition-colors ${wf.active ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'} ${togglingId === wf.id ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
               >
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${wf.active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                <span className={`h-5 w-5 shrink-0 rounded-full bg-white shadow transition-all ${wf.active ? 'ml-auto' : 'ml-0'}`} />
               </button>
+              {(() => {
+                const Icon = getEventIcon(wf.event)
+                return (
+                  <div className="shrink-0 w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-700/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                    <Icon size={18} />
+                  </div>
+                )
+              })()}
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-ink truncate">{wf.name}</div>
                 <div className="text-xs text-muted">

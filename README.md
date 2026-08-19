@@ -20,6 +20,7 @@
 - [Automações](#automações)
 - [Inbox unificada](#inbox-unificada)
 - [Dashboard Executivo](#dashboard-executivo)
+- [Agendamentos](#agendamentos)
 - [Webhooks](#webhooks)
 - [Integrações](#integrações)
 - [Inteligência Artificial](#inteligência-artificial)
@@ -60,7 +61,8 @@
 │   │   ├── notifier.py        # Notificações in-app multicamada
 │   │   ├── sla.py             # Verificação de SLA
 │   │   └── document_processor.py, realtime.py, etc.
-│   └── tests/        # Testes (pytest)
+│   ├── tests/        # Testes (pytest)
+│   └── bot/          # Bot WhatsApp (FastAPI + Groq) — sobe como subprocesso do backend
 ├── frontend/         # React + Vite + TypeScript + Tailwind
 │   └── src/
 │       ├── core/         # Types, utils, hooks, services, UI kit, layout
@@ -323,6 +325,28 @@ Gestão de clientes (por empresa). O bot qualifica o lead como **Empresa** ou **
 | `GET` | `/clients/{id}` | Detalhe (inclui `tipo`) |
 | `PUT` | `/clients/{id}/name` | Atualiza o nome |
 | `GET` | `/clients/{id}/conversations` | Histórico de conversas do cliente |
+
+---
+
+## Agendamentos
+
+A página **Agendamentos** (`frontend/src/pages/Appointments.tsx`) reúne os compromissos da empresa em uma visão de **lista + calendário**, com criação rápida via modal.
+
+- **Lista de cards**: cada agendamento exibe nome, serviço, status (badge) e data/hora; atualiza em tempo real via WebSocket (re-busca automática quando surge/atualiza um item).
+- **Botão "Novo agendamento"** no cabeçalho (`PageHeader`): abre um `Modal` com formulário (cliente opcional via select de `clients.list()`, nome*, serviço, data/hora* e observação). Ao salvar, chama a API e a lista/calendário refletem a mudança.
+- **Calendário mensal**: grade navegável (semana segunda→domingo), botões de mês anterior/próximo e "Hoje"; dias com agendamentos mostram um ponto; clicar em um dia **filtra** a lista para aquele dia (botão "Ver todos" limpa o filtro).
+
+O `client_id` é **opcional** (coluna `appointments.client_id` é `nullable`): é possível criar um agendamento sem um cliente vinculado. O `status` assume `"pendente"` por padrão.
+
+Endpoints (`routers/appointments.py`):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/appointments?skip=&limit=` | Lista agendamentos da empresa (ordenado por `data_hora` desc) |
+| `POST` | `/appointments?client_id=<int\|None>` | Cria agendamento (body: `name`, `servico`, `data_hora`, `observacao`); dispara refresh de `appointments` e `stats` |
+| `PUT` | `/appointments/{id}/status` | Atualiza o `status` (body: `status`) |
+
+> A criação de agendamentos também dispara o webhook `appointment.created` (ver seção *Webhooks*) e alimenta o lembrete enviado pelo scheduler (`appointment_reminder`).
 
 ---
 
@@ -700,11 +724,12 @@ Endpoints (`routers/workflows.py`):
 Microserviço Node.js que conecta o Mochi ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys) (WebSocket não-oficial).
 
 ```
-WhatsApp <──> Gateway (porta 3001) <──> Backend Mochi (porta 8000)
+WhatsApp <──> Gateway (porta 3001) <──> Bot WhatsApp (porta 8001) <──> Backend Mochi (porta 8000)
 ```
 
-- **Entrada** (WhatsApp → Mochi): mensagens recebidas via WebSocket são enfileiradas e enviadas via webhook (`POST /webhook`) para o backend.
-- **Saída** (Mochi → WhatsApp): backend chama as APIs REST do gateway para enviar mensagens.
+- **Entrada** (WhatsApp → Bot): mensagens recebidas pelo gateway são encaminhadas via webhook (`POST /webhook`, `backend/bot`, porta 8001).
+- **Saída** (Bot → WhatsApp): o bot chama as APIs REST do gateway (`/send`, `/send-buttons`, `/send-image`) para enviar mensagens.
+- **Bridge CRM**: o bot espelha cada mensagem/resposta no `crm.db` (tabela `conversations`), de modo que o Inbox unificado (`/api/inbox`) continua funcionando.
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -719,28 +744,28 @@ Recursos: reconexão automática, retry com backoff no webhook, suporte a texto/
 
 ## Assistente Virtual (IA) no WhatsApp
 
-O canal WhatsApp já conta com **auto-atendimento por IA**. Mensagens recebidas pelo gateway são encaminhadas ao backend (`POST /webhook`) e a resposta é gerada por `services/llm.py` (provedor configurável) e devolvida ao cliente via gateway.
+O atendimento do canal WhatsApp é feito pelo **bot** em `backend/bot` (FastAPI + Groq), um processo separado do backend, acessível em `http://localhost:8001`. O gateway encaminha as mensagens recebidas para `POST /webhook` do bot; a resposta é gerada por `handlers/ai.py` (Groq) ou pela máquina de estados em `handlers/menu.py` e devolvida ao cliente via gateway.
 
 Ao iniciar o contato, o bot qualifica o lead com um menu rápido (**1 Empresa / 2 Pessoa**), guardando a escolha em `client.dados["tipo"]`, e só então apresenta o menu principal. Qualquer mensagem de texto posterior que **não seja uma opção numérica de menu** (1–7) é respondida diretamente pela IA — não é preciso passar pelo menu antes.
 
 Fluxo:
 
 ```
-WhatsApp → Gateway (Baileys, :3001) → POST /webhook (backend :8000)
+WhatsApp → Gateway (Baileys, :3001) → POST /webhook (bot :8001)
                                  ↓
-              whatsapp.process_menu()  →  (1º contato) pergunta Empresa/Pessoa → guarda em dados["tipo"]
+           processar_menu()        →  (1º contato) pergunta Empresa/Pessoa → guarda em dados["tipo"]
                                  ↓
-              whatsapp.process_menu()  →  texto que não é opção de menu (1–7) retorna ação "ai"
+           ask_ai() / transcribe_audio() / ask_ai_with_image()
+                                 |  (Groq, via handlers/ai.py, lê GROQ_API_KEY/GROQ_MODEL do backend/bot/.env)
+           gateway /send → WhatsApp do cliente
                                  ↓
-              llm.generate_reply(texto, histórico)  →  provedor (Groq/OpenAI/Anthropic/Gemini/Ollama)
-                                 ↓
-              gateway /send (ou /send-buttons) → WhatsApp do cliente
+           crm_bridge.bridge_to_crm() → crm.db (tabela conversations) → Inbox
 ```
 
-- **Provedor**: selecionado por `LLM_PROVIDER` (`groq` | `openai` | `anthropic` | `gemini` | `ollama`). Cada provedor usa sua própria chave/modelo: `GROQ_PRIMARY_MODEL`, `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `GEMINI_MODEL` ou `OLLAMA_MODEL`.
-- **Prompt de sistema** (`SYSTEM_PROMPT` em `services/llm.py`): o assistente atende **exclusivamente** produtos de software — **sites, web apps, aplicativos móveis, automações, aplicativos desktop, APIs e integrações** — com tom **formal e educado**, redirecionando gentilmente assuntos fora desse escopo e orientando a digitar `0` para falar com um humano/consultor.
-- **Requisitos**: `API_GROQ` (chave Groq) e o gateway conectado (QR Code). Sem a chave, a IA informa indisponibilidade e mantém o menu.
-- O histórico da conversa (tabela `conversations` do gateway) é enviado como contexto à IA, preservando a coerência do atendimento.
+- **Provedor de IA**: usa Groq, com chave e modelo lidos do `backend/bot/.env` (`GROQ_API_KEY`, `GROQ_BASE_URL`, `GROQ_MODEL`). Sem a chave, a IA informa indisponibilidade e o menu textual continua funcionando.
+- **Recursos**: menu interativo, comandos rápidos (`/menu`, `/ajuda`, etc.), respostas automáticas, visão (imagens) e transcrição de áudio (faster-whisper), geração de proposta comercial (`handlers/proposta.py`) e integração com o CRM via bridge.
+- **Bridge CRM**: cada mensagem/resposta é espelhada no `crm.db` (tabela `conversations`), preservando o Inbox unificado e o histórico de atendimento.
+- **Auto-start**: com `AUTO_START_BOT=true` no backend, o `main.py` sobe o bot como subprocesso (mesmo venv).
 
 ---
 
@@ -790,14 +815,37 @@ python db.py stamp head                # marca versão sem rodar
 | `API_ANTHROPIC` / `ANTHROPIC_MODEL` | Chave e modelo Anthropic (ex.: `claude-3-5-haiku-latest`) |
 | `API_GEMINI` / `GEMINI_MODEL` | Chave (Google) e modelo Gemini (ex.: `gemini-1.5-flash`) |
 | `API_OLLAMA` / `OLLAMA_MODEL` | (opcional) e modelo Ollama local (ex.: `llama3`); base `OLLAMA_BASE_URL` |
+| `AUTO_START_BOT` | Sobe o bot (`backend/bot`) como subprocesso junto com o backend |
+| `BOT_PATH` | Caminho relativo ao backend para a pasta do bot (`bot`) |
+| `BOT_PORT` | Porta do bot (padrão: 8001) |
+| `BOT_URL` | URL base do bot (padrão: `http://localhost:8001`) |
+| `AUTO_START_GATEWAY` | Sobe o gateway WhatsApp como subprocesso junto com o backend |
+| `GATEWAY_PATH` | Caminho relativo do gateway (ex.: `../gateway`) |
 
 ### Gateway
 
 | Variável | Descrição |
 |---|---|
 | `PORT` | Porta do servidor (padrão: 3001) |
-| `WEBHOOK_URL` | Endpoint do backend para receber mensagens |
+| `WEBHOOK_URL` | Endpoint do **bot** para receber mensagens (ex.: `http://localhost:8001/webhook`) |
 | `LOG_LEVEL` | Nível de log (info, debug, etc.) |
+
+### Bot WhatsApp (`backend/bot`)
+
+| Variável | Descrição |
+|---|---|
+| `GATEWAY_URL` | URL base do gateway (padrão: `http://localhost:3001`) |
+| `DATABASE_URL` | Compartilha o `crm.db` do CRM (padrão: `sqlite:///../crm.db`) — o bot não tem banco próprio |
+| `BOT_PORT` | Porta do bot (padrão: 8001) |
+| `GROQ_API_KEY` | Chave da API Groq (obrigatória para a IA responder) |
+| `GROQ_BASE_URL` | Base URL da API Groq (padrão: `https://api.groq.com/openai/v1`) |
+| `GROQ_MODEL` | Modelo Groq usado nas respostas (padrão: `grok-2-1212`) |
+| `VISION_MODEL` | Modelo Groq de visão para imagens (opcional, ex.: `llama-3.2-11b-vision-preview`) |
+| `WHITELIST_ENABLED` | `true`/`false` — se definida, **precede** a config do banco |
+| `WHITELIST` | Números separados por vírgula (ex.: `5511982553849,116578431590552`) — se definida e não vazia, precede a do banco |
+| `GROUP_ENABLED` | `true`/`false` — se definida, **precede** a config do banco |
+
+Estas variáveis são lidas de `backend/bot/.env` (veja `backend/bot/.env.example`). Quando presentes, sobrepõem o que está salvo no banco.
 
 
 ---

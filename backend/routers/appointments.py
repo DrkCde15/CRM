@@ -30,8 +30,8 @@ def list_appointments(
 
 @router.post("", response_model=AppointmentOut)
 def create_appointment(
-    client_id: int,
     body: AppointmentCreate,
+    client_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

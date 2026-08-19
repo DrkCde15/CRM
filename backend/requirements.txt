@@ -7,6 +7,10 @@ python-jose[cryptography]
 python-dotenv
 httpx
 bcrypt
+openai
+structlog
+slowapi
+faster-whisper
 email-validator
 alembic
 cryptography
@@ -22,3 +26,8 @@ sse-starlette>=1.6.1,<2
 schedule
 psycopg2-binary
 pandas
+pydantic
+python-dateutil
+pytest-asyncio
+httpx-ws
+numpy

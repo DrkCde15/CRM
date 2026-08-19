@@ -4,7 +4,7 @@ __pycache__/
 .venv/
 venv/
 *.db
-.env
+.env*
 
 # Node
 node_modules/
@@ -16,3 +16,4 @@ dist/
 *.log
 .idea/
 .vscode/
+*:Zone.Identifier

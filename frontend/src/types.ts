@@ -42,7 +42,7 @@ export interface Ticket {
 
 export interface Appointment {
   id: number
-  client_id: number
+  client_id: number | null
   name: string
   servico: string
   data_hora: string

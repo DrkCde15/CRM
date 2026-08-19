@@ -116,6 +116,15 @@ export const tickets = {
 
 export const appointments = {
   list: async () => (await api.get<Appointment[]>('/appointments')).data,
+  create: async (
+    clientId: number | null,
+    payload: { name: string; servico: string; data_hora: string; observacao?: string },
+  ) =>
+    (
+      await api.post<Appointment>('/appointments', payload, {
+        params: clientId != null ? { client_id: clientId } : {},
+      })
+    ).data,
 }
 
 export const stats = {

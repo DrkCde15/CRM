@@ -23,10 +23,26 @@ class Settings(BaseSettings):
     gateway_url: str = "http://localhost:3001"
     gateway_api_key: str = ""
     webhook_secret: str = ""
-    whatsapp_webhook_url: str = "http://localhost:8000/api/webhook"
+    whatsapp_webhook_url: str = "http://localhost:8001/webhook"
     auto_start_gateway: bool = False
     gateway_path: str = "../gateway"
     frontend_url: str = "http://localhost:5173"
+
+    # ── Bot WhatsApp (FastAPI, em backend/bot) ──
+    # Substitui o atendimento interno antigo. O gateway encaminha as mensagens
+    # recebidas para este bot (POST {bot_url}/webhook), que processa menu/IA e
+    # envia as respostas de volta pelo gateway.
+    auto_start_bot: bool = False
+    bot_path: str = "bot"
+    bot_port: int = 8001
+    bot_url: str = "http://localhost:8001"
+
+    # Whitelist e grupos do bot. Quando definidas aqui, são repassadas ao bot
+    # (subprocess) e PRECEDEM as configurações do banco/dashboard. Deixe em
+    # branco para usar o valor do banco/dashboard.
+    whitelist_enabled: str | None = None
+    whitelist: str = ""
+    group_enabled: str | None = None
 
     email_google_script_url: Annotated[str, Field(validation_alias="EMAIL_GOOGLE_SCRIPT_URL")] = ""
     email_google_script_secret: Annotated[
@@ -110,12 +126,6 @@ class Settings(BaseSettings):
             issues.append("DATABASE_URL não definido.")
         if not self.allowed_origins:
             issues.append("ALLOWED_ORIGINS vazio — defina as origens do frontend.")
-        if not self.webhook_secret:
-            issues.append(
-                "WEBHOOK_SECRET não definido — o gateway não conseguirá autenticar os webhooks."
-            )
-        if not self.gateway_api_key:
-            issues.append("GATEWAY_API_KEY não definido — o backend não conseguirá autenticar no gateway.")
         provider = (self.llm_provider or "groq").lower()
         if provider == "groq" and not self.api_groq:
             issues.append("LLM_PROVIDER=groq sem API_GROQ: respostas de IA indisponíveis.")
